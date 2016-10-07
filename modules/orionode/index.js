@@ -47,6 +47,15 @@ function startServer(options) {
 		}
 
 		function validateCollab(req, res, next) {
+			//this should be in checkAuthenticated but not sure side effects on ajax calls
+			if (!req.user) {
+				var fullUrl = req.protocol + '://' + req.get('host') + req.originalUrl;
+				fullUrl = '/mixloginstatic/landing.html?redirect=' + encodeURIComponent(fullUrl) + '&key=FORMOAuthUser';
+				res.redirect(fullUrl);
+			} else {
+				req.user.workspaceDir = options.workspaceDir + (req.user.workspace ? "/" + req.user.workspace : "");
+			}
+
 			//make sure you got all the info you need to create the temp files and establish the session.
 			var collabParams = req.params["0"];
 			var extraParamsIndex = collabParams.indexOf('&');
@@ -79,7 +88,7 @@ function startServer(options) {
 			app.use(require(options.configParams["login.module"] || "./lib/user")(options));
 		}
 
-		app.use('/scratchpad*', checkAuthenticated, validateCollab, require('./lib/scratchpad')({root: '/file', options: options}));
+		app.use('/scratchpad*', validateCollab, require('./lib/scratchpad')({root: '/file', options: options}));
 		app.use('/site', checkAuthenticated, require('./lib/sites')(options));
 		app.use('/task', checkAuthenticated, require('./lib/tasks').router({ root: contextPath + '/task' }));
 		app.use('/filesearch', checkAuthenticated, require('./lib/search')(options));
