@@ -747,8 +747,7 @@ define([
 						evt.session.apply();
 					}
 				}
-				var event = new CustomEvent("readyToGetContent", {"detail": {"e": "contents"}});
-				document.dispatchEvent(event);
+				editor.getModel()._initCollaboration();
 			}
 
 			this._saveEventLogged = false;
