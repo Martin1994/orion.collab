@@ -45,29 +45,13 @@ function startServer(options) {
 			}
 		}
 
-		function validateCollab(req, res, next) {
-			//this should be in checkAuthenticated but not sure side effects on ajax calls
+		function checkAuthenticatedTwo(req, res, next) {
 			if (!req.user) {
-				var fullUrl = req.protocol + '://' + req.get('host') + req.originalUrl;
-				fullUrl = '/mixloginstatic/LoginWindow.html?redirect=' + encodeURIComponent(fullUrl) + '&key=FORMOAuthUser';
-				res.redirect(fullUrl);
+				res.writeHead(401, "Not authenticated");
+				res.end();
 			} else {
-				req.user.workspaceDir = options.workspaceDir + (req.user.workspace ? "/" + req.user.workspace : "");
-				
-				//make sure you got all the info you need to create the temp files and establish the session.
-				var collabParams = req.params["0"];
-				var extraParamsIndex = collabParams.indexOf('&');
-				var collabSessionID = collabParams.substring(extraParamsIndex != -1 ? extraParamsIndex : collabParams.length, collabParams.length);
-				if (collabSessionID.length > 0) {
-					req.collabSessionID = collabSessionID;
-				}
-				collabParams = collabParams.substring(0, extraParamsIndex != -1 ? extraParamsIndex : collabParams.length);
-
-				if (collabParams.length === 0) {
-					res.redirect('/');
-				} else {
-					next();
-				}
+				req.user.workspaceDir = options.workspaceDir;
+				next();
 			}
 		}
 
@@ -87,7 +71,7 @@ function startServer(options) {
 			app.use(require('./lib/user')(options));
 		}
 
-		app.use('/scratchpad*', validateCollab, require('./lib/scratchpad')({root: '/file', options: options}));
+		app.use('/sharedWorkspace', checkAuthenticatedTwo, require('./lib/sharedWorkspace')({ root: '/sharedWorkspace', fileRoot: '/file', options: options }));
 		app.use('/site', checkAuthenticated, require('./lib/sites')(options));
 		app.use('/task', checkAuthenticated, require('./lib/tasks').router({ root: '/task' }));
 		app.use('/filesearch', checkAuthenticated, require('./lib/search')(options));
