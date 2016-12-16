@@ -78,7 +78,7 @@ function startServer(options) {
 			app.use(require(options.configParams["login.module"] || "./lib/user")(options));
 		}
 		
-		app.use('/sharedWorkspace', checkCollabAuthenticated, require('./lib/sharedWorkspace')({ root: '/sharedWorkspace', fileRoot: '/file', options: options }));
+		app.use('/sharedWorkspace', checkCollabAuthenticated, require('./lib/sharedWorkspace')({ root: '/sharedWorkspace/tree/file', fileRoot: '/file', options: options }));
 		app.use('/site', checkAuthenticated, require('./lib/sites')(options));
 		app.use('/task', checkAuthenticated, require('./lib/tasks').router({ root: contextPath + '/task' }));
 		app.use('/filesearch', checkAuthenticated, require('./lib/search')(options));
