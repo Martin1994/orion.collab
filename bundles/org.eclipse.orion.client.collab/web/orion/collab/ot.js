@@ -1648,7 +1648,7 @@ define([], function() {
     };
 
     OtherClient.prototype.updateClient = function (clientObj) {
-        this.name = this.setName(clientObj.name || this.name);
+        this.setName(clientObj.name || this.name);
         this.color = clientObj.color || this.color;
     };
 
@@ -1754,7 +1754,6 @@ define([], function() {
 
     EditorClient.prototype.addClient = function (clientId, clientObj) {
       clientObj.name = clientObj.username;
-      clientObj.color = clientObj.usercolor;
       this.clients[clientId] = new OtherClient(
         clientId,
         this.clientListEl,
