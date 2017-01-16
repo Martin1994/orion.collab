@@ -326,6 +326,12 @@ define([
 			col.appendChild(span);
 			col.setAttribute("role", "presentation"); //$NON-NLS-1$ //$NON-NLS-2$
 			span.className = "mainNavColumn"; //$NON-NLS-0$
+			// Append annotation container
+			var annotation = document.createElement("span"); //$NON-NLS-0$
+			annotation.id = tableRow.id + "Annotation"; //$NON-NLS-0$
+			annotation.classList.add("treeAnnotation");
+			annotation.classList.add("navAnnotation");
+			col.appendChild(annotation);
 			var itemNode;
 			if (item.Directory) {
 				// defined in ExplorerRenderer.  Sets up the expand/collapse behavior

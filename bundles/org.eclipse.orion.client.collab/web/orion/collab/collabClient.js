@@ -10,10 +10,116 @@
  ******************************************************************************/
 
 /*eslint-env browser, amd */
-define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot'], function(mEventTarget, mAnnotations, ot) {
+define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable'],
+	function(mEventTarget, mAnnotations, ot, mTreeTable) {
 
 	var AT = mAnnotations.AnnotationType;
 	
+	// ms to delay updating collaborator annotation.
+	// We need this delay because the annotation is updated asynchronizedly and is transferd in multiple
+	// packages. We don't want the UI to refresh too frequently.
+	var COLLABORATOR_ANNOTATION_UPDATE_DELAY = 500;
+
+	/**
+	 * A record of a collaborator
+	 * 
+	 * @param {string} id -
+	 * @param {string} name -
+	 * @param {string} color -
+	 */
+	var CollabPeer = function(id, name, color) {
+		this.id = id;
+		this.name = name;
+		this.color = color;
+	};
+
+	/**
+	 * A record of a collaborator annotation
+	 * 
+	 * @constructor
+	 * @name {orion.collab.CollabAnnotation}
+	 * @implements {orion.treetable.TableTree.IAnnotation}
+	 * 
+	 * @param {string} name - username
+	 * @param {string} color - user color
+	 * @param {string} location - file location
+	 */
+	var CollabAnnotation = function(name, color, location) {
+		this.name = name;
+		this.color = color;
+		// Remove trailing "/"
+		if(location.substr(-1) === '/') {
+			location = location.substr(0, location.length - 1);
+		}
+		this.location = location;
+	};
+
+	CollabAnnotation.prototype = {
+		/**
+		 * Find the deepest expanded folder item that contains the file having
+		 * this annotation.
+		 * 
+		 * @see IAnnotation for details.
+		 * 
+		 * @param {orion.explorer.ExplorerModel} model -
+		 * @param {Function} callback -
+		 */
+		findDeepestFitId: function(model, callback) {
+			var self = this;
+			model.getRoot(function(root) {
+				// Find the existing ID reversely
+				var location = self.location;
+				while (location.length > 0) {
+					// Create a fake item
+					// NOTE: it's a hack because we don't have any efficient
+					//       way to get the actual file node. Instead, we have
+					//       to do it recursively starting from the root. As
+					//       long as anything wierd happens, change it to the
+					//       actual item object.
+					var item = {
+						Location: location
+					};
+					var id = model.getId(item);
+					// Test if this element exists
+					var exists = !!document.getElementById(id);
+					if (exists) {
+						callback(id);
+						return;
+					}
+					// Not found. This probably means this item is collapsed.
+					// Try to find one level upper.
+					// Here I assume every url starts from "/"
+					location = location.substr(0, location.lastIndexOf('/'));
+				}
+				// Nothing found
+				callback('');
+			});
+		},
+
+		/**
+		 * Get description of this annotation which can be used in for example
+		 * tooltip.
+		 * 
+		 * @return {string} - description
+		 */
+		getDescription: function() {
+			return this.name + ' is editing this file.';
+		},
+
+		/**
+		 * Generate a new HTML element of this annotation.
+		 * 
+		 * @return {Element} - the HTML element of this annotation
+		 */
+		generateHTML: function() {
+			var element = document.createElement('div');
+			element.innerText = this.name.substr(0, 2);
+			element.style = 'background-color: ' + this.color;
+			element.classList.add('collabAnnotation');
+			return element;
+		}
+	};
+
 	var collabSocket = {
 		socket: null,
 		setSocket: function(websocket) {
@@ -53,11 +159,20 @@ define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot
 		this.collabSocket.addEventListener("Closed", self.socketDisconnected.bind(self));
 		this.socket = this.collabSocket.socket;
 		window.addEventListener("hashchange", function() {self.destroyOT.call(self);});
-		this.docPeers = {};
+		this.docPeers = {}; // TODO: combine with this.peers
 		this.awaitingClients = false;
 		if (this.socket && !this.socket.closed && this.textView) {
 			this.initSocket();
 		}
+		this.collaboratorAnnotations = {};
+		// Timeout id to indicate whether a delayed update has already been assigned
+		this.collaboratorAnnotationsUpdateTimeoutId = 0;
+		/**
+		 * A map of clientid -> peer
+		 * This is different from this.docPeers because it is session-wised.
+		 * @type {Object.<string, CollabPeer>}
+		 */
+		this.peers = {}; // TODO: currently there is no way to remove a peer from here
 	}
 
 	CollabClient.prototype = {
@@ -144,6 +259,31 @@ define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot
 		            break;
 	        	}
 			};
+
+			this.socket.on('message', function(msg) {
+				switch (msg.type) {
+					case 'togetherjs.hello':
+						// Listen to the hello message in order to track everyone's current doc.
+						// hello message initiates a new sequence of annotations, so it clears
+						// all the existing annotations.
+						self.resetCollaboratorAnnotation();
+					case 'togetherjs.hello-back':
+						// Both hello and hello-back contains client info (name, color, etc.),
+						// so we update the record of this peer
+						self.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
+						// Both hello and hello-back message contains one user's current doc, so
+						// we add a new annotation.
+						// Use hash to get the location of the current file but remove the leading #
+						var location = self.maybeTransformLocation(msg.urlHash.substr(1));
+						self.addOrUpdateCollaboratorAnnotation(msg.clientId, location);
+						break;
+
+					case 'togetherjs.update_client':
+						self.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
+						this.trigger('client_update', msg.clientId, msg);
+						break;
+				}
+			});
 		
 			//now let's get this started and request the latest doc.
 		    var msg = {
@@ -153,6 +293,93 @@ define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot
 		    };
 
 		    this.socket.send(msg);
+		},
+
+		/**
+		 * Reset the record of collaborator annotation
+		 */
+		resetCollaboratorAnnotation: function() {
+			this.collaboratorAnnotations = {};
+		},
+
+		/**
+		 * Add or update a record of collaborator annotation and request to update UI
+		 * 
+		 * @param {string} clientId -
+		 * @param {string} name -
+		 * @param {string} url -
+		 */
+		addOrUpdateCollaboratorAnnotation: function(clientId, url) {
+			var self = this;
+			var peer = this.getPeer(clientId);
+			// Peer might be loading. Once it is loaded, this annotation will be automatically updated,
+			// so we can safely leave it blank.
+			var name = peer ? peer.name : '';
+			var color = peer ? peer.color : '#000000';
+			this.collaboratorAnnotations[clientId] = new CollabAnnotation(name, color, url);
+			if (!this.collaboratorAnnotationsUpdateTimeoutId) {
+				// No delayed update is assigned. Assign one.
+				// This is necessary because we don't want duplicate UI action within a short period.
+				this.collaboratorAnnotationsUpdateTimeoutId = setTimeout(function() {
+					self.collaboratorAnnotationsUpdateTimeoutId = 0;
+					var annotations = [];
+					for (var key in self.collaboratorAnnotations) {
+						if (self.collaboratorAnnotations.hasOwnProperty(key)) {
+							annotations.push(self.collaboratorAnnotations[key]);
+						}
+					}
+					self.fileClient.dispatchEvent({
+						type: 'CollabChanged',
+						annotations: annotations
+					});
+				}, COLLABORATOR_ANNOTATION_UPDATE_DELAY);
+			}
+		},
+
+		/**
+		 * Determine whether a client has an annotation
+		 * 
+		 * @return {boolean} -
+		 */
+		collaboratorHasAnnotation: function(clientId) {
+			return !!this.collaboratorAnnotations[clientId];
+		},
+
+		/**
+		 * Get the client's annotation
+		 * 
+		 * @return {CollabAnnotation} -
+		 */
+		getCollaboratorAnnotation: function (clientId) {
+			return this.collaboratorAnnotations[clientId];
+		},
+
+		/**
+		 * Add or update peer record
+		 * 
+		 * @param {CollabPeer} peer -
+		 */
+		addOrUpdatePeer: function(peer) {
+			if (this.peers[peer.id]) {
+				// Update
+				this.peers[peer.id] = peer;
+				if (this.collaboratorHasAnnotation(peer.id)) {
+					var annotation = this.getCollaboratorAnnotation(peer.id);
+					this.addOrUpdateCollaboratorAnnotation(peer.id, annotation.location);
+				}
+			} else {
+				// Add
+				this.peers[peer.id] = peer;
+			}
+		},
+
+		/**
+		 * Get peer by id
+		 * 
+		 * @return {CollabPeer} -
+		 */
+		getPeer: function(clientId) {
+			return this.peers[clientId];
 		},
 
 		startOT: function(revision, operation, clients) {

@@ -34,6 +34,7 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib'], function(messages, 
 	 *   <li>getRoot(onItem)</li>
 	 *   <li>getChildren(parentItem, onComplete)</li>
 	 *   <li>getId(item)  // must be a valid DOM id</li>
+	 *   <li>(optional) getAnnotations() // returns an array of Annotation</li>
 	 * </ul>
 	 * 
 	 * Renderers must implement:
@@ -75,6 +76,7 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib'], function(messages, 
 			this._tableElement = options.tableElement || "table"; //$NON-NLS-0$
 			this._tableBodyElement = options.tableBodyElement || "tbody"; //$NON-NLS-0$
 			this._tableRowElement = options.tableRowElement || "tr"; //$NON-NLS-0$
+			this._annotationRefreshRequested = false;
 			
 			// Generate the table
 			this._treeModel.getRoot(function (root) {
@@ -173,6 +175,75 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib'], function(messages, 
 			if (this._renderer.rowsChanged) {
 				this._renderer.rowsChanged();
 			}
+			this.requestAnnotationRefresh();
+		},
+
+		/**
+		 * Redraw the annotation according to model.getAnnotations().
+		 * 
+		 * This function assumes model.getAnnotations() exists.
+		 */
+		_redrawAnnotation: function() {
+			// TODO: should I move this part to renderer? If so, how?
+			var tree = this;
+			var annotations = tree._treeModel.getAnnotations();
+			console.assert(Array.isArray(annotations));
+			// Remove existing annotations
+			var existingAnnotations = this._parent.getElementsByClassName('treeAnnotationOn');
+			var annotationsToRemove = [];
+			for (var i = 0; i < existingAnnotations.length; i++){
+				annotationsToRemove.push(existingAnnotations[i]);
+			};
+			annotationsToRemove.forEach(function(annotation) {
+				while (annotation.firstChild) {
+					annotation.removeChild(annotation.firstChild);
+				}
+				annotation.classList.remove('treeAnnotationOn');
+			})
+			// Add new annotations
+			// TODO: The callback hell here is ugly. I prefer to use async library.
+			var tasksRemaining = annotations.length;
+			// A map from tree item ID to a list of its annotation HTML elements
+			var annotationElementsByItem = {};
+			annotations.forEach(function(annotation) {
+				annotation.findDeepestFitId(tree._treeModel, function(id) {
+					// Make sure there is a place to show the annotation
+					if (!id) {
+						return;
+					}
+					var container = document.getElementById(id + 'Annotation');
+					if (!container) {
+						return;
+					}
+					var annotationElement = annotation.generateHTML();
+					if (!annotationElement) {
+						return;
+					}
+					if (!annotationElementsByItem[id]) {
+						annotationElementsByItem[id] = [];
+					}
+					annotationElementsByItem[id].push(annotationElement);
+					tasksRemaining--;
+					if (!tasksRemaining) {
+						// All async calls ends. Add these annotations now.
+						for (var elementid in annotationElementsByItem) {
+							if (annotationElementsByItem.hasOwnProperty(elementid)) {
+								var annotationsToAdd = annotationElementsByItem[elementid];
+								var html = annotationsToAdd[0];
+								container = document.getElementById(elementid + 'Annotation');
+								container.appendChild(html);
+								container.classList.add('treeAnnotationOn');
+								if (annotationsToAdd.length > 1) {
+									// TODO: tooltip
+									var overlay = document.createElement('div');
+									overlay.classList.add('overlay');
+									container.appendChild(overlay);
+								}
+							}
+						}
+					}
+				});
+			});
 		},
 		
 		getSelected: function() {
@@ -241,6 +312,28 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib'], function(messages, 
 					console.log(messages["could not find table row "] + parentId);
 				}
 			}
+		},
+
+		/**
+		 * Request an annotation refresh using the information provided by
+		 * model.getAnnotations().
+		 */
+		requestAnnotationRefresh: function() {
+			if (!this._treeModel.getAnnotations) {
+				return;
+			}
+
+			if (this._annotationRefreshRequested) {
+				return;
+			}
+
+			// Refresh annotation in next tick to avoid duplicate requests
+			var tree = this;
+			this._annotationRefreshRequested = true;
+			setTimeout(function() {
+				tree._annotationRefreshRequested = false;
+				tree._redrawAnnotation();
+			}, 0);
 		},
 		
 		getContentNode: function() {
@@ -397,6 +490,63 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib'], function(messages, 
 		}
 	};  // end prototype
 	TableTree.prototype.constructor = TableTree;
+
+	/**
+	 * Annotation descriptor.
+	 * 
+	 * Note: I'd like to use the annotation in editor bundle. However that one
+	 *       is not in ui bundle and coupling to the editor too much.
+	 * 
+	 * @interface
+	 * @name {orion.treetable.TableTree.IAnnotation}
+	 */
+	TableTree.IAnnotation = function() {};
+
+	/**
+	 * Get the deepest item that this annotation should display at.
+	 * 
+	 * @example
+	 *     Suppose we have a file located in /folder/subfolder/file.ext and
+	 *     the tree table is in this status:
+	 *     - (/)
+	 *        - (/folder)
+	 *           + (/folder/subfolder)    <- this folder collapses
+	 *     Then the annotation of /folder/subfolder/file.ext should be at
+	 *     /folder/subfolder since it is the deepest item fits it.
+	 * 
+	 * @abstract
+	 * 
+	 * @param {orion.explorer.ExplorerModel} model - the model of the tree
+	 * @param {Function} - callback that takes the DOM ID of an item from the
+	 *     model as parameter
+	 */
+	TableTree.IAnnotation.prototype.findDeepestFitId = function(model, callback) {
+		throw new Error('Not implemented.');
+	};
+
+	/**
+	 * Get description of this annotation which can be used in for examole
+	 * tooltip.
+	 * 
+	 * @abstract
+	 * 
+	 * @return {string} - description
+	 */
+	TableTree.IAnnotation.prototype.getDescription = function() {
+		throw new Error('Not implemented.');
+	};
+
+	/**
+	 * Generate a new HTML element of this annotation.
+	 * 
+	 * @abstract
+	 * 
+	 * @return {Element} - the HTML element of this annotation
+	 */
+	TableTree.IAnnotation.prototype.generateHTML = function() {
+		throw new Error('Not implemented.');
+	};
+
 	//return module exports
 	return {TableTree: TableTree};
 });
