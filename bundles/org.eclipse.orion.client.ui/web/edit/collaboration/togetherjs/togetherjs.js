@@ -306,7 +306,7 @@
     }
 
     // FIXME: maybe I should just test for TogetherJS.require:
-    if (TogetherJS._loaded) {
+    if (TogetherJS.require) {
       session = TogetherJS.require("session");
       addStyle();
       session.start(projectSessionID);
