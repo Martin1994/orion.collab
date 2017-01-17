@@ -4,7 +4,7 @@
 
 define(["require", "util", "channels", "jquery", "storage"], function (require, util, channels, $, storage) {
 
-  var DEBUG = true;
+  var DEBUG = false;
 
   // This is the amount of time in which a hello-back must be received after a hello
   // for us to respect a URL change:
@@ -137,7 +137,9 @@ define(["require", "util", "channels", "jquery", "storage"], function (require, 
         });
       } else if (msg.type == 'file_operation') {
         this.opmessage(msg);
-        console.info("In:", msg)
+        if (DEBUG && IGNORE_MESSAGES.indexOf(msg.type) == -1) {
+          console.info("In:", msg);
+        }
         return;
       }
       // if (! readyForMessages) {
