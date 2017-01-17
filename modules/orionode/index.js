@@ -75,10 +75,14 @@ function startServer(options) {
 				return res.status(200).json({UserName: req.user.username});
 			});
 		} else {
+<<<<<<< HEAD
 			app.use(require(options.configParams["login.module"] || "./lib/user")(options));
+=======
+			app.use(require('./lib/user')(options));
+			app.use('/sharedWorkspace', checkCollabAuthenticated, require('./lib/sharedWorkspace')({ root: '/sharedWorkspace/tree/file', fileRoot: '/file', options: options }));
+>>>>>>> Remove collab dependency in single user mode
 		}
 		
-		app.use('/sharedWorkspace', checkCollabAuthenticated, require('./lib/sharedWorkspace')({ root: '/sharedWorkspace/tree/file', fileRoot: '/file', options: options }));
 		app.use('/site', checkAuthenticated, require('./lib/sites')(options));
 		app.use('/task', checkAuthenticated, require('./lib/tasks').router({ root: contextPath + '/task' }));
 		app.use('/filesearch', checkAuthenticated, require('./lib/search')(options));
