@@ -10,7 +10,7 @@
  ******************************************************************************/
 
 /*eslint-env browser, amd*/
-define(['i18n!orion/nls/messages', 'orion/webui/littlelib'], function(messages, lib) {
+define(['i18n!orion/nls/messages', 'orion/webui/littlelib', 'orion/Deferred'], function(messages, lib, Deferred) {
 
 	/**
 	 * Constructs a new TableTree with the given options.
@@ -201,11 +201,12 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib'], function(messages, 
 				annotation.classList.remove('treeAnnotationOn');
 			})
 			// Add new annotations
-			// TODO: The callback hell here is ugly. I prefer to use async library.
-			var tasksRemaining = annotations.length;
 			// A map from tree item ID to a list of its annotation HTML elements
 			var annotationElementsByItem = {};
+			var promises = [];
 			annotations.forEach(function(annotation) {
+				var promise = new Deferred();
+				promises.push(promise);
 				annotation.findDeepestFitId(tree._treeModel, function(id) {
 					// Make sure there is a place to show the annotation
 					if (!id) {
@@ -223,26 +224,26 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib'], function(messages, 
 						annotationElementsByItem[id] = [];
 					}
 					annotationElementsByItem[id].push(annotationElement);
-					tasksRemaining--;
-					if (!tasksRemaining) {
-						// All async calls ends. Add these annotations now.
-						for (var elementid in annotationElementsByItem) {
-							if (annotationElementsByItem.hasOwnProperty(elementid)) {
-								var annotationsToAdd = annotationElementsByItem[elementid];
-								var html = annotationsToAdd[0];
-								container = document.getElementById(elementid + 'Annotation');
-								container.appendChild(html);
-								container.classList.add('treeAnnotationOn');
-								if (annotationsToAdd.length > 1) {
-									// TODO: tooltip
-									var overlay = document.createElement('div');
-									overlay.classList.add('overlay');
-									container.appendChild(overlay);
-								}
-							}
+					promise.resolve();
+				});
+			});
+			Deferred.all(promises).then(function() {
+				// All async calls ends. Add these annotations now.
+				for (var elementid in annotationElementsByItem) {
+					if (annotationElementsByItem.hasOwnProperty(elementid)) {
+						var annotationsToAdd = annotationElementsByItem[elementid];
+						var html = annotationsToAdd[0];
+						var container = document.getElementById(elementid + 'Annotation');
+						container.appendChild(html);
+						container.classList.add('treeAnnotationOn');
+						if (annotationsToAdd.length > 1) {
+							// TODO: tooltip
+							var overlay = document.createElement('div');
+							overlay.classList.add('overlay');
+							container.appendChild(overlay);
 						}
 					}
-				});
+				}
 			});
 		},
 		
