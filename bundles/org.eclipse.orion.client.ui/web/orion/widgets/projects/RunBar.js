@@ -118,6 +118,9 @@ define([
 
 				this._editorInputManager.addEventListener("InputChanged", function(e) { //$NON-NLS-0$
 					this._projectClient.getProject(e.metadata).then(function(project) {
+						// Initiates TogetherJS
+						var projectSessionID = e.metadata.Attributes.hubID;
+						TogetherJS(projectSessionID);
 						this.setProject (project);
 					}.bind(this));
 				}.bind(this));
