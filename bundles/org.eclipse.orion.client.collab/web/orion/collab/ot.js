@@ -2138,12 +2138,9 @@ define([], function() {
         if (offset) {
           //decide whether or not it is worth sending (if line has changed or needs updating).
           if (currLine !== this.myLine || currLine === lastLine || currLine === 0) {
-          //if on last line and nothing written, send lastline-1 to bypass no annotation on empty line.
-              if (currLine === lastLine && offset === lineStartOffset) {
-                  currLine -= 1;
-              }
+            // Send this change
           } else {
-              return;
+            return;
           }
       }
 
