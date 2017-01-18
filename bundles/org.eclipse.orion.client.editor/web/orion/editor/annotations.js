@@ -554,7 +554,7 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 		 * returns all annotations in the model.
 		 *
 		 * @param {Number} start the start offset of the range.
-		 * @param {Number} end the end offset of the range.
+		 * @param {Number} end the end offset of the range (including).
 		 * @return {orion.editor.AnnotationIterator} an annotation iterartor.
 		 */
 		getAnnotations: function(start, end) {
@@ -569,10 +569,10 @@ define("orion/editor/annotations", ['i18n!orion/editor/nls/messages', 'orion/edi
 				skip = function() {
 					while (i < annotations.length) {
 						var a =  annotations[i++];
-						if ((start === a.start) || (start > a.start ? start < a.end : a.start < end)) {
+						if ((start === a.start) || (start > a.start ? start <= a.end : a.start <= end)) {
 							return a;
 						}
-						if (a.start >= end) {
+						if (a.start > end) {
 							break;
 						}
 					}
