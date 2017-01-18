@@ -10,8 +10,8 @@
  ******************************************************************************/
 
 /*eslint-env browser, amd */
-define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable'],
-	function(mEventTarget, mAnnotations, ot, mTreeTable) {
+define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable'],
+	function(EventTarget, mAnnotations, ot, mTreeTable) {
 
 	var AT = mAnnotations.AnnotationType;
 	
@@ -149,7 +149,7 @@ define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot
 		this.textView = null;
 		var self = this;
 		this.fileClient.addEventListener('Changed', self.sendFileOperation.bind(self));
-		mEventTarget.EventTarget.addMixin(collabSocket);
+		EventTarget.attach(collabSocket);
 		this.editor.addEventListener("ModelLoaded", function(event) {self.viewInstalled.call(self, event);});
 		this.editor.addEventListener("TextViewUninstalled", function(event) {self.viewUninstalled.call(self, event);});
 		this.ot = null;
@@ -178,11 +178,11 @@ define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot
 	CollabClient.prototype = {
 		initSocket: function() {
 			this.inputManager.collabRunning = true;
-			var self = this;
+			var client = this;
 			
 			//Add the necessary functions to the socket so we can run an OT session.
 		  	this.socket.sendOperation = function (revision, operation, selection) {
-		  		var myDoc = self.currentDoc();
+		  		var myDoc = client.currentDoc();
 			    var msg = {
 			      'type': 'operation',
 			      'revision': revision,
@@ -192,11 +192,11 @@ define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot
 			      'clientId': this.clientId
 			    };
 			    this.send(JSON.stringify(msg));
-				self.editor.markClean();
+				client.editor.markClean();
 		  	};
 
 		 	this.socket.sendSelection = function (selection) {
-		  		var myDoc = self.currentDoc();
+		  		var myDoc = client.currentDoc();
 			    var msg = {
 			      'type': 'selection',
 			      'selection': selection,
@@ -211,34 +211,34 @@ define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot
 		  	};
 
 		  	this.socket.trigger = function (event) {
-		  		if (!self.textView) return;
+		  		if (!client.textView) return;
 			    var args = Array.prototype.slice.call(arguments, 1);
 			    var action = this.callbacks && this.callbacks[event];
 			    if (action) { action.apply(this, args); }
 		  	};
 
 		  	this.socket.docmessage = function(msg) {
-				if (msg.doc !== self.currentDoc() || !self.textView) {
+				if (msg.doc !== client.currentDoc() || !client.textView) {
 		  			return;
 		  		}
 		        switch(msg.type) {
 		          case "init-document":
-					self.docPeers = msg.clients;
-		            self.startOT(msg.revision, msg.operation, msg.clients);
-		            self.awaitingClients = false;
+					client.docPeers = msg.clients;
+		            client.startOT(msg.revision, msg.operation, msg.clients);
+		            client.awaitingClients = false;
 		            break;
 		          case "client_left":
 		            this.trigger('client_left', msg.clientId);
-					delete self.docPeers[msg.clientId];
+					delete client.docPeers[msg.clientId];
 		            break;
 		          case "client_joined":
-					self.docPeers[msg.clientId] = msg.client;
-					this.trigger('client_joined', msg.clientId, self.docPeers[msg.clientId]);
+					client.docPeers[msg.clientId] = msg.client;
+					this.trigger('client_joined', msg.clientId, client.docPeers[msg.clientId]);
 		          	break;
 		          case "all_clients":
-					self.docPeers = msg.clients;
-					this.trigger('clients', self.docPeers);
-					self.awaitingClients = false;
+					client.docPeers = msg.clients;
+					this.trigger('clients', client.docPeers);
+					client.awaitingClients = false;
 					break;
 		          case "client_update":
 					this.trigger('client_update', msg.clientId, msg.client);
@@ -248,7 +248,7 @@ define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot
 		            break;
 		          case "operation":
 		            this.trigger('operation', msg.operation);
-					self.editor.markClean();
+					client.editor.markClean();
 		            this.trigger('selection', msg.clientId, msg.selection);
 		            break;
 		          case "selection":
@@ -266,20 +266,25 @@ define(['orion/editor/eventTarget', 'orion/editor/annotations', 'orion/collab/ot
 						// Listen to the hello message in order to track everyone's current doc.
 						// hello message initiates a new sequence of annotations, so it clears
 						// all the existing annotations.
-						self.resetCollaboratorAnnotation();
+						client.resetCollaboratorAnnotation();
 					case 'togetherjs.hello-back':
 						// Both hello and hello-back contains client info (name, color, etc.),
 						// so we update the record of this peer
-						self.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
+						client.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
 						// Both hello and hello-back message contains one user's current doc, so
 						// we add a new annotation.
 						// Use hash to get the location of the current file but remove the leading #
-						var location = self.maybeTransformLocation(msg.urlHash.substr(1));
-						self.addOrUpdateCollaboratorAnnotation(msg.clientId, location);
+						var location = client.maybeTransformLocation(msg.urlHash.substr(1));
+						client.addOrUpdateCollaboratorAnnotation(msg.clientId, location);
 						break;
 
 					case 'togetherjs.update_client':
-						self.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
+						client.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
+						this.trigger('client_update', msg.clientId, msg);
+						break;
+
+					case 'togetherjs.peer-update':
+						client.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.peer.name, msg.peer.color));
 						this.trigger('client_update', msg.clientId, msg);
 						break;
 				}
