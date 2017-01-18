@@ -114,7 +114,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		generateHTML: function() {
 			var element = document.createElement('div');
 			element.innerText = this.name.substr(0, 2);
-			element.style = 'background-color: ' + this.color;
+			element.style.backgroundColor = this.color;
 			element.classList.add('collabAnnotation');
 			return element;
 		}
