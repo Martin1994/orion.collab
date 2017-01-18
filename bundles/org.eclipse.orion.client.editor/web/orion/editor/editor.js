@@ -389,22 +389,6 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 			return this._foldingRulerVisible;
 		},
 		/**
-		 * Creates and add a FoldingAnnotation to the editor.
-		 *
-		 * @param {Number} start The start offset of the annotation in the text model.
-		 * @param {Number} end The end offset of the annotation in the text model.
-		 * @returns {orion.editor.FoldingAnnotation} The FoldingAnnotation added to the editor.
-		 */
-		addFoldingAnnotation: function(start, end) {
-			var annotationModel = this.getAnnotationModel();
-			if(annotationModel) {
-				var foldingAnnotation = new mAnnotations.FoldingAnnotation(start, end, this.getTextView().getModel());
-				annotationModel.addAnnotation(foldingAnnotation);
-				return foldingAnnotation;
-			}
-			return null;
-		},
-		/**
 		 * Returns the line number ruler of the editor.
 		 *
 		 * @returns {orion.editor.LineNumberRuler}
@@ -960,20 +944,6 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 					if (tooltip) { tooltip.hide(); }
 					that._updateCursorStatus();
 					that._highlightCurrentLine(e.newValue, e.oldValue);
-					if (TogetherJS.running) {
-						var currLine = this.getLineAtOffset(e.newValue.start);
-						var lastLine = this.getModel().getLineCount()-1;
-						var lineStartOffset = this.getLineStart(currLine);
-						var offset = e.newValue.start;
-
-						var event = new CustomEvent("changedLine", {"detail": {
-							"line": currLine,
-							"endLine": lastLine,
-							"lineStartOffset": lineStartOffset,
-							"offset": offset
-					    }});
-					    document.dispatchEvent(event);
-					}
 				}
 			};
 			textView.addEventListener("ModelChanged", this._listener.onModelChanged); //$NON-NLS-0$
@@ -1024,60 +994,6 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 				}
 			};
 
-			var collabPeers = {};
-
-			var editCollabAnnotation = function(e) {
-				var annotationModel = this.getAnnotationModel();
-				var line = e.detail.line
-				var viewModel = this.getModel();
-				var annotationModel = this.getAnnotationModel();
-				var lineStart = editor.mapOffset(viewModel.getLineStart(line));
-				if (lineStart == -1) return;
-				var ann = AT.createAnnotation(AT.ANNOTATION_COLLAB_LINE_CHANGED, lineStart, lineStart, e.detail.name + " is editing");
-				ann.html = ann.html.substring(0, ann.html.indexOf('></div>')) + " style='background-color:" + e.detail.color + "'><b>" + e.detail.name.substring(0,2) + "</b></div>";
-				var peerId = e.detail.peerId;
-
-				/*if peer isn't being tracked yet, start tracking
-				* else replace previous annotation
-				*/
-				if (!(peerId in collabPeers)) {
-					collabPeers[peerId] = {
-						'annotation': ann,
-						'line': line
-					};
-					annotationModel.addAnnotation(ann);
-				} else {
-					var currAnn = collabPeers[peerId].annotation;
-					if (ann.start == currAnn.start) return;
-					annotationModel.replaceAnnotations([currAnn], [ann]);
-					collabPeers[peerId].annotation = ann;
-				}
-			};
-
-			var destroyCollabAnnotations = function(e) {
-				var annotationModel = this.getAnnotationModel();
-				var currAnn = null;
-
-				/*If a peer is specified, just remove their annotation
-				* Else remove all peers' annotations.
-				*/
-				if (e.detail.hasOwnProperty('peerId')) {
-					//remove that users annotation
-					currAnn = collabPeers[e.detail.peerId].annotation;
-					annotationModel.removeAnnotation(currAnn);
-					delete collabPeers[e.detail.peerId];
-				} else {
-					//the session has ended remove everyone's annotation
-					for (var key in collabPeers) {
-						if (collabPeers.hasOwnProperty(key)) {
-							currAnn = collabPeers[key].annotation;
-							annotationModel.removeAnnotation(currAnn);
-						}
-					}
-					collabPeers = {};
-				}
-			};
-
 			// Create rulers, annotation model and styler
 			if (this._annotationFactory) {
 				var textModel = textView.getModel();
@@ -1107,9 +1023,6 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 				var ruler = this._annotationRuler = rulers.annotationRuler;
 				if (ruler) {
 					ruler.onDblClick = addRemoveBookmark;
-					document.addEventListener("collabAnnotation", editCollabAnnotation.bind(this));
-					document.addEventListener("destroyCollabAnnotations", destroyCollabAnnotations.bind(this));
-
 					ruler.setMultiAnnotationOverlay({html: "<div class='annotationHTML overlay'></div>"}); //$NON-NLS-0$
 					ruler.addAnnotationType(AT.ANNOTATION_ERROR);
 					ruler.addAnnotationType(AT.ANNOTATION_WARNING);
@@ -1119,7 +1032,6 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 					ruler.addAnnotationType(AT.ANNOTATION_DIFF_ADDED);
 					ruler.addAnnotationType(AT.ANNOTATION_DIFF_DELETED);
 					ruler.addAnnotationType(AT.ANNOTATION_DIFF_MODIFIED);
-					ruler.addAnnotationType(AT.ANNOTATION_COLLAB_LINE_CHANGED, 1);
 				}
 				this.setAnnotationRulerVisible(this._annotationRulerVisible || this._annotationRulerVisible === undefined, true);
 
@@ -1142,7 +1054,7 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 					ruler.addAnnotationType(AT.ANNOTATION_DIFF_ADDED);
 					ruler.addAnnotationType(AT.ANNOTATION_DIFF_DELETED);
 					ruler.addAnnotationType(AT.ANNOTATION_DIFF_MODIFIED);
-					ruler.addAnnotationType(AT.ANNOTATION_COLLAB_LINE_CHANGED, 1);
+
 				}
 				this.setOverviewRulerVisible(this._overviewRulerVisible || this._overviewRulerVisible === undefined, true);
 			}
