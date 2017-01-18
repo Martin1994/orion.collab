@@ -34,17 +34,17 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 	};
 
 	/**
-	 * A record of a collaborator annotation
+	 * A record of a collaborator annotation in the file tree
 	 * 
 	 * @constructor
-	 * @name {orion.collab.CollabAnnotation}
+	 * @name {orion.collab.CollabFileAnnotation}
 	 * @implements {orion.treetable.TableTree.IAnnotation}
 	 * 
 	 * @param {string} name - username
 	 * @param {string} color - user color
 	 * @param {string} location - file location
 	 */
-	var CollabAnnotation = function(name, color, location) {
+	var CollabFileAnnotation = function(name, color, location) {
 		this.name = name;
 		this.color = color;
 		// Remove trailing "/"
@@ -54,7 +54,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		this.location = location;
 	};
 
-	CollabAnnotation.prototype = {
+	CollabFileAnnotation.prototype = {
 		/**
 		 * Find the deepest expanded folder item that contains the file having
 		 * this annotation.
@@ -164,9 +164,9 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		if (this.socket && !this.socket.closed && this.textView) {
 			this.initSocket();
 		}
-		this.collaboratorAnnotations = {};
+		this.collabFileAnnotations = {};
 		// Timeout id to indicate whether a delayed update has already been assigned
-		this.collaboratorAnnotationsUpdateTimeoutId = 0;
+		this.collabFileAnnotationsUpdateTimeoutId = 0;
 		/**
 		 * A map of clientid -> peer
 		 * This is different from this.docPeers because it is session-wised.
@@ -266,7 +266,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 						// Listen to the hello message in order to track everyone's current doc.
 						// hello message initiates a new sequence of annotations, so it clears
 						// all the existing annotations.
-						client.resetCollaboratorAnnotation();
+						client.resetCollabFildAnnotation();
 					case 'togetherjs.hello-back':
 						// Both hello and hello-back contains client info (name, color, etc.),
 						// so we update the record of this peer
@@ -275,7 +275,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 						// we add a new annotation.
 						// Use hash to get the location of the current file but remove the leading #
 						var location = client.maybeTransformLocation(msg.urlHash.substr(1));
-						client.addOrUpdateCollaboratorAnnotation(msg.clientId, location);
+						client.addOrUpdateCollabFileAnnotation(msg.clientId, location);
 						break;
 
 					case 'togetherjs.update_client':
@@ -301,36 +301,36 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		},
 
 		/**
-		 * Reset the record of collaborator annotation
+		 * Reset the record of collaborator file annotation
 		 */
-		resetCollaboratorAnnotation: function() {
-			this.collaboratorAnnotations = {};
+		resetCollabFildAnnotation: function() {
+			this.collabFileAnnotations = {};
 		},
 
 		/**
-		 * Add or update a record of collaborator annotation and request to update UI
+		 * Add or update a record of collaborator file annotation and request to update UI
 		 * 
 		 * @param {string} clientId -
 		 * @param {string} name -
 		 * @param {string} url -
 		 */
-		addOrUpdateCollaboratorAnnotation: function(clientId, url) {
+		addOrUpdateCollabFileAnnotation: function(clientId, url) {
 			var self = this;
 			var peer = this.getPeer(clientId);
 			// Peer might be loading. Once it is loaded, this annotation will be automatically updated,
 			// so we can safely leave it blank.
 			var name = peer ? peer.name : '';
 			var color = peer ? peer.color : '#000000';
-			this.collaboratorAnnotations[clientId] = new CollabAnnotation(name, color, url);
-			if (!this.collaboratorAnnotationsUpdateTimeoutId) {
+			this.collabFileAnnotations[clientId] = new CollabFileAnnotation(name, color, url);
+			if (!this.collabFileAnnotationsUpdateTimeoutId) {
 				// No delayed update is assigned. Assign one.
 				// This is necessary because we don't want duplicate UI action within a short period.
-				this.collaboratorAnnotationsUpdateTimeoutId = setTimeout(function() {
-					self.collaboratorAnnotationsUpdateTimeoutId = 0;
+				this.collabFileAnnotationsUpdateTimeoutId = setTimeout(function() {
+					self.collabFileAnnotationsUpdateTimeoutId = 0;
 					var annotations = [];
-					for (var key in self.collaboratorAnnotations) {
-						if (self.collaboratorAnnotations.hasOwnProperty(key)) {
-							annotations.push(self.collaboratorAnnotations[key]);
+					for (var key in self.collabFileAnnotations) {
+						if (self.collabFileAnnotations.hasOwnProperty(key)) {
+							annotations.push(self.collabFileAnnotations[key]);
 						}
 					}
 					self.fileClient.dispatchEvent({
@@ -342,21 +342,21 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		},
 
 		/**
-		 * Determine whether a client has an annotation
+		 * Determine whether a client has a file annotation
 		 * 
 		 * @return {boolean} -
 		 */
-		collaboratorHasAnnotation: function(clientId) {
-			return !!this.collaboratorAnnotations[clientId];
+		collabHasFileAnnotation: function(clientId) {
+			return !!this.collabFileAnnotations[clientId];
 		},
 
 		/**
-		 * Get the client's annotation
+		 * Get the client's file annotation
 		 * 
-		 * @return {CollabAnnotation} -
+		 * @return {CollabFileAnnotation} -
 		 */
-		getCollaboratorAnnotation: function (clientId) {
-			return this.collaboratorAnnotations[clientId];
+		getCollabFileAnnotation: function (clientId) {
+			return this.collabFileAnnotations[clientId];
 		},
 
 		/**
@@ -368,9 +368,9 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 			if (this.peers[peer.id]) {
 				// Update
 				this.peers[peer.id] = peer;
-				if (this.collaboratorHasAnnotation(peer.id)) {
-					var annotation = this.getCollaboratorAnnotation(peer.id);
-					this.addOrUpdateCollaboratorAnnotation(peer.id, annotation.location);
+				if (this.collabHasFileAnnotation(peer.id)) {
+					var annotation = this.getCollabFileAnnotation(peer.id);
+					this.addOrUpdateCollabFileAnnotation(peer.id, annotation.location);
 				}
 			} else {
 				// Add
