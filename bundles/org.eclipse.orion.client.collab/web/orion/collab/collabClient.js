@@ -558,9 +558,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 					self.handleFileOperation(msg);
 				}
 			};
-			if (this.textView) {
-				this.initSocket();
-			}
+			this.initSocket();
 		},
 
 		socketDisconnected: function() {
