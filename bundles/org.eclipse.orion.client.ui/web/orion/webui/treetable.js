@@ -210,14 +210,17 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib', 'orion/Deferred'], f
 				annotation.findDeepestFitId(tree._treeModel, function(id) {
 					// Make sure there is a place to show the annotation
 					if (!id) {
+						promise.resolve();
 						return;
 					}
 					var container = document.getElementById(id + 'Annotation');
 					if (!container) {
+						promise.resolve();
 						return;
 					}
 					var annotationElement = annotation.generateHTML();
 					if (!annotationElement) {
+						promise.resolve();
 						return;
 					}
 					if (!annotationElementsByItem[id]) {
