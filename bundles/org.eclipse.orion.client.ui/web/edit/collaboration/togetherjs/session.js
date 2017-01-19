@@ -128,20 +128,9 @@ define(["require", "util", "channels", "jquery", "storage"], function (require, 
     // assert(! session.channel, "Attempt to re-open channel");
     // session.channel = null;
     console.info("Connecting to", session.hubUrl(), location.href);
-    var c = channels.WebSocketChannel(session.hubUrl(), session.clientId);
+    var c = channels.WebSocketChannel(session.hubUrl());
     c.myUrl = session.currentUrl();
     c.onmessage = function (msg) {
-      if (msg.type == 'authenticated') {
-        window.require(['orion/collab/collabClient'], function(collabClient) {
-          collabClient.collabSocket.setSocket(c);
-        });
-      } else if (msg.type == 'file_operation') {
-        this.opmessage(msg);
-        if (DEBUG && IGNORE_MESSAGES.indexOf(msg.type) == -1) {
-          console.info("In:", msg);
-        }
-        return;
-      }
       // if (! readyForMessages) {
       //   if (DEBUG) {
       //     console.info("In (but ignored for being early):", msg);
@@ -181,27 +170,6 @@ define(["require", "util", "channels", "jquery", "storage"], function (require, 
     session.router.bindChannel(session.channel);
     TogetherJS.connected = true;
   }
-  
-  session.editorLoaded = function(model) {
-    session.textModel = model;
-    if (!session.channel) {
-      setTimeout(function() {
-        session.editorLoaded(model);
-      }, 2000);
-      return;
-    }
-    var myUrl = session.currentUrl();
-    var msg = {
-      'type': 'join-document',
-      'currentUrl': myUrl
-    }
-    session.send(msg);
-  };
-
-  session.startOT = function(revision, model, operation) {
-    session.ot = new ot.EditorClient(revision-1, [], session.channel, new ot.OrionAdapter(model));
-    session.channel.trigger('operation', operation);
-  };
 
   session.addClientData = function(msg) {
     msg.name = peers.Self.name || peers.Self.defaultName,
@@ -260,15 +228,6 @@ define(["require", "util", "channels", "jquery", "storage"], function (require, 
 
   session.hub.on("who", function (msg) {
     sendHello(true);
-  });
-
-  session.hub.on("init-connection", function (msg) {
-    var msg = {
-      'type': 'authenticate',
-      'token': localStorage.getItem('orionSocket.authToken'),
-      'clientId': session.clientId
-    };
-    session.send(msg);
   });
 
   function processFirstHello(msg) {

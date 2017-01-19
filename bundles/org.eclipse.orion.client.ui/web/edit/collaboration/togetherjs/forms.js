@@ -541,11 +541,11 @@ define(["jquery", "util", "session", "elementFinder", "eventMaker", "templating"
   var lastFocus = null;
 
   session.on("ui-ready", function () {
-    $(window).on("beforeunload", session.close);
+    $(window).on("beforeunload", function() { session.close('unload'); });
   });
 
   session.on("close", function () {
-    $(window).off("beforeunload", session.close);
+    $(window).off("beforeunload", function() { session.close('unload'); });
   });
 
   session.hub.on("hello", function (msg) {
