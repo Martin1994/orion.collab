@@ -93,11 +93,6 @@ var AbstractChannel = util.mixinEvents({
         throw e;
       }
     }
-    if (data.doc) {
-      if (this.docmessage) {
-        this.docmessage(data);
-      }
-    }
     if (this.onmessage) {
       this.onmessage(data);
     }
@@ -109,7 +104,7 @@ var AbstractChannel = util.mixinEvents({
 
 channels.WebSocketChannel = util.Class(AbstractChannel, {
 
-  constructor: function (address, clientId) {
+  constructor: function (address) {
     if (address.search(/^https?:/i) === 0) {
       address = address.replace(/^http/i, 'ws');
     }
@@ -119,7 +114,6 @@ channels.WebSocketChannel = util.Class(AbstractChannel, {
     this._lastConnectTime = 0;
     this._backoff = 0;
     this.baseConstructor();
-    this.clientId = clientId;
   },
   myUrl: null,
   backoffTime: 50, // Milliseconds to add to each reconnect time
@@ -201,9 +195,6 @@ channels.WebSocketChannel = util.Class(AbstractChannel, {
       this._reopening = false;
     }).bind(this);
     this.socket.onclose = (function (event) {
-      window.require(['orion/collab/collabClient'], function(collabClient) {
-        collabClient.collabSocket.destroySocket();
-      });
       this.socket = null;
       var method = "error";
       if (event.wasClean) {

@@ -167,6 +167,9 @@ define([
 
 		_handleCollabChanged: function(evt) {
 			console.assert(Array.isArray(evt.annotations));
+			// TODO: once we have other type of annotations, we need to remove
+			//       all collab annotations and then add those from the event,
+			//       instead of replacing the whole annotation list.
 			this._annotations = evt.annotations;
 		}
 	});
