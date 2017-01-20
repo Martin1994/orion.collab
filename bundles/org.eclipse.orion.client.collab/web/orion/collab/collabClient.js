@@ -167,7 +167,8 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 					var annotation = this.getCollabFileAnnotation(peer.id);
 					this.addOrUpdateCollabFileAnnotation(peer.id, annotation.location);
 				}
-				if (this.otOrionAdapter) {
+				if (this.otOrionAdapter && this.textView) {
+					// Make sure we have view installed
 					this.otOrionAdapter.updateLineAnnotationStyle(peer.id);
 				}
 			} else {
