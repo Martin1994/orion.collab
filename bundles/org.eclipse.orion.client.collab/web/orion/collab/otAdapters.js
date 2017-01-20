@@ -429,9 +429,10 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
         OrionEditorAdapter.operationFromOrionChanges;
 
     // Apply an operation to a Orion instance.
-    OrionEditorAdapter.applyOperationToOrion = function (operation, orion) {
+    OrionEditorAdapter.prototype.applyOperationToOrion = function (operation, orion) {
         var ops = operation.ops;
         var index = 0; // holds the current index into Orion's content
+        var oldLine = this.myLine; // Track the current line before this operation
         for (var i = 0, l = ops.length; i < l; i++) {
             var op = ops[i];
             if (TextOperation.isRetain(op)) {
@@ -444,6 +445,12 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
                 var to   = index - op;
                 orion.setText('', from, to);
             }
+        }
+        // Check if current line is changed
+        var deltaLine = this.myLine - oldLine;
+        if (deltaLine !== 0) {
+            // Try to put the current line at the same position on the screen
+            this.collabClient.textView.tryScrollLines(deltaLine);
         }
     };
 
@@ -637,7 +644,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
 
     OrionEditorAdapter.prototype.applyOperation = function (operation) {
       this.ignoreNextChange = true;
-      OrionEditorAdapter.applyOperationToOrion(operation, this.model);
+      this.applyOperationToOrion(operation, this.model);
       this.ignoreNextChange = false;
     };
 
