@@ -254,6 +254,10 @@ define(["require", "util", "channels", "jquery", "storage"], function (require, 
     session.send(msg);
   }
 
+  session.sayHello = function () {
+    sendHello(false);
+  };
+
   session.makeHelloMessage = function (helloBack) {
     var msg = {
       name: peers.Self.name || peers.Self.defaultName,
