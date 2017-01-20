@@ -106,7 +106,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
                 this.client.removePeer(msg.clientId);
                 break;
             case "client_joined":
-                this.client.addOrUpdatePeer(new CollabPeer(clientId, msg.client.name, msg.client.color));
+                this.client.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.client.username, msg.client.color));
                 this.trigger('client_joined', msg.clientId, this.client.getPeer(clientId));
                 break;
             case "all_clients":
@@ -554,7 +554,8 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
         };
     };
 
-    OrionEditorAdapter.prototype.updateLineAnnotation = function(id, selection, name, color) {
+    OrionEditorAdapter.prototype.updateLineAnnotation = function(id, selection, name, color, force) {
+        force = !!force;
         if (id === this.collabClient.getClientId()) {
             // Don't add self
             return;
@@ -579,7 +580,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
             annotationModel.addAnnotation(this.annotations[peerId]);
         } else {
             var currAnn = this.annotations[peerId];
-            if (ann.start === currAnn.start) return;
+            if (!force && ann.start === currAnn.start) return;
             annotationModel.replaceAnnotations([currAnn], [ann]);
             this.annotations[peerId] = ann;
         }
@@ -600,7 +601,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
         }
         var cursor = annotation.start;
         var selection = ot.Selection.createCursor(cursor);
-        this.updateLineAnnotation(id, selection, name, color);
+        this.updateLineAnnotation(id, selection, name, color, true);
     };
 
     OrionEditorAdapter.prototype.destroyCollabAnnotations = function(peerId) {
