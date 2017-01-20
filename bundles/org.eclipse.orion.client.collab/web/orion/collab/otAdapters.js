@@ -153,6 +153,10 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
             case 'authenticated':
                 this.sendInit();
                 this.client.getDocPeers();
+                // Re-send hello because TogetherJS might sent hello before this client
+                // is authenticated.
+			    var session = TogetherJS.require('session');
+                session.sayHello();
                 break;
 
             case 'hello':
