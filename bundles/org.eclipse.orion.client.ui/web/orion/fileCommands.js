@@ -1297,7 +1297,12 @@ define(['i18n!orion/navigate/nls/messages', 'orion/webui/littlelib', 'orion/i18n
 				shareProjectClient.addUser(username, project);
 			},
 			visibleWhen: function(item) {
-				return !item.Parents || !item.Parents.length;
+				if (Array.isArray(item)) {
+					if(item.length === 1){
+						return !item[0].Parents || !item[0].Parents.length;
+					}
+				}
+				return false;
 			}
 		});
 		commandService.addCommand(shareProjectCommand);
