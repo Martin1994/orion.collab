@@ -1578,10 +1578,8 @@ define([], function() {
 
     SelfMeta.prototype.transform = function (operation) {
       return new SelfMeta(
-        // this.selectionBefore.transform(operation),
-        // this.selectionAfter.transform(operation)
-        undefined,
-        undefined
+        this.selectionBefore.transform(operation),
+        this.selectionAfter.transform(operation)
       );
     };
 
@@ -1606,7 +1604,7 @@ define([], function() {
     };
 
 
-    function OtherClient (id, listEl, editorAdapter, name, selection, color) {
+    function OtherClient (id, listEl, editorAdapter, name, selection) {
       this.id = id;
       this.listEl = listEl;
       this.editorAdapter = editorAdapter;
@@ -1618,12 +1616,8 @@ define([], function() {
         this.listEl.appendChild(this.li);
       }
 
-      if (typeof color == 'undefined') {
-        this.setColor(name ? hueFromName(name) : Math.random());
-      } else {
-        this.color = color;
-      }
-      if (selection > -1) { this.updateSelection(selection); }
+      this.setColor(name ? hueFromName(name) : Math.random());
+      if (selection) { this.updateSelection(selection); }
     }
 
     OtherClient.prototype.setColor = function (hue) {
@@ -1645,19 +1639,14 @@ define([], function() {
       this.setColor(hueFromName(name));
     };
 
-    OtherClient.prototype.updateClient = function (clientObj) {
-        this.setName(clientObj.name || this.name);
-        this.color = clientObj.color || this.color;
-    };
-
     OtherClient.prototype.updateSelection = function (selection) {
-        this.selection = selection;
-        this.mark = this.editorAdapter.setOtherSelection(
-            selection,
-            this.color,
-            this.id,
-            this.name
-        );
+      this.removeSelection();
+      this.selection = selection;
+      this.mark = this.editorAdapter.setOtherSelection(
+        selection,
+        selection.position === selection.selectionEnd ? this.color : this.lightColor,
+        this.id
+      );
     };
 
     OtherClient.prototype.remove = function () {
@@ -1673,12 +1662,12 @@ define([], function() {
     };
 
 
-    function EditorClient (revision, clients, serverAdapter, editorAdapter, clientId) {
+    function EditorClient (revision, clients, serverAdapter, editorAdapter) {
       Client.call(this, revision);
       this.serverAdapter = serverAdapter;
       this.editorAdapter = editorAdapter;
       this.undoManager = new UndoManager();
-      this.id = clientId;
+  
       this.initializeClientList();
       this.initializeClients(clients);
 
@@ -1694,18 +1683,16 @@ define([], function() {
 
       this.serverAdapter.registerCallbacks({
         client_left: function (clientId) { self.onClientLeft(clientId); },
-        client_joined: function (clientId, clientObj) { self.addClient(clientId, clientObj); },
-        client_update: function (clientId, clientObj) { self.getClientObject(clientId).updateClient(clientObj); },
+        set_name: function (clientId, name) { self.getClientObject(clientId).setName(name); },
         ack: function () { self.serverAck(); },
         operation: function (operation) {
           self.applyServer(TextOperation.fromJSON(operation));
         },
         selection: function (clientId, selection) {
-          if (selection > -1) {
-            // self.getClientObject(clientId).updateSelection(
-            //     self.transformSelection(Selection.fromJSON(selection))
-            // );
-            self.getClientObject(clientId).updateSelection(selection);
+          if (selection) {
+            self.getClientObject(clientId).updateSelection(
+                self.transformSelection(Selection.fromJSON(selection))
+            );
           } else {
             self.getClientObject(clientId).removeSelection();
           }
@@ -1722,22 +1709,15 @@ define([], function() {
             if (clients.hasOwnProperty(clientId)) {
               var clientObject = self.getClientObject(clientId);
 
-              clients[clientId].name = clients[clientId].username || "unknown";
-              clients[clientId].color = clients[clientId].usercolor || "#000000";
               if (clients[clientId].name) {
                 clientObject.setName(clients[clientId].name);
               }
 
-              if (clients[clientId].color) {
-                clientObject.color = clients[clientId].color;
-              }
-
               var selection = clients[clientId].selection;
-              if (selection > -1) {
-                // self.clients[clientId].updateSelection(
-                //     self.transformSelection(Selection.fromJSON(selection))
-                // );
-                self.clients[clientId].updateSelection(selection);
+              if (selection) {
+                self.clients[clientId].updateSelection(
+                    self.transformSelection(Selection.fromJSON(selection))
+                );
               } else {
                 self.clients[clientId].removeSelection();
               }
@@ -1751,14 +1731,12 @@ define([], function() {
     inherit(EditorClient, Client);
 
     EditorClient.prototype.addClient = function (clientId, clientObj) {
-      clientObj.name = clientObj.username;
       this.clients[clientId] = new OtherClient(
         clientId,
         this.clientListEl,
         this.editorAdapter,
         clientObj.name || clientId,
-        clientObj.selection,
-        clientObj.color
+        clientObj.selection ? Selection.fromJSON(clientObj.selection) : null
       );
     };
 
@@ -1833,10 +1811,7 @@ define([], function() {
     EditorClient.prototype.onSelectionChange = function () {
       var oldSelection = this.selection;
       this.updateSelection();
-      var name = this.clients[this.id].name;
-      var color = this.clients[this.id].color;
-      //update yourself for self-tracking
-      this.editorAdapter.updateLineAnnotation(this.id, this.selection, name, color);
+      if (oldSelection && this.selection.equals(oldSelection)) { return; }
       this.sendSelection(this.selection);
     };
 
@@ -1856,7 +1831,7 @@ define([], function() {
 
     EditorClient.prototype.applyOperation = function (operation) {
       this.editorAdapter.applyOperation(operation);
-      // this.updateSelection();
+      this.updateSelection();
       this.undoManager.transform(new WrappedOperation(operation, null));
     };
 

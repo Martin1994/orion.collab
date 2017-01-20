@@ -91,21 +91,32 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
         }
         switch(type) {
             case "init-document":
-                this.client.docPeers = msg.clients;
+                // Initialize
+                for (var clientId in msg.clients) {
+                    if (msg.clients.hasOwnProperty(clientId)) {
+                        var peerData = msg.clients[clientId];
+                        this.client.addOrUpdatePeer(new CollabPeer(clientId, peerData.name, peerData.color));
+                    }
+                }
                 this.client.startOT(msg.revision, msg.operation, msg.clients);
                 this.client.awaitingClients = false;
                 break;
             case "client_left":
                 this.trigger('client_left', msg.clientId);
-                delete this.client.docPeers[msg.clientId];
+                this.client.removePeer(msg.clientId);
                 break;
             case "client_joined":
-                this.client.docPeers[msg.clientId] = msg.client;
-                this.trigger('client_joined', msg.clientId, this.client.docPeers[msg.clientId]);
+                this.client.addOrUpdatePeer(new CollabPeer(clientId, msg.client.name, msg.client.color));
+                this.trigger('client_joined', msg.clientId, this.client.getPeer(clientId));
                 break;
             case "all_clients":
-                this.client.docPeers = msg.clients;
-                this.trigger('clients', this.client.docPeers);
+                for (var clientId in msg.clients) {
+                    if (msg.clients.hasOwnProperty(clientId)) {
+                        var peerData = msg.clients[clientId];
+                        this.client.addOrUpdatePeer(new CollabPeer(clientId, peerData.name, peerData.color));
+                    }
+                }
+                this.trigger('clients', msg.clients);
                 this.client.awaitingClients = false;
                 break;
             case "client_update":
@@ -298,47 +309,52 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
         }, this.delay);
     };
 
-    function OrionEditorAdapter (orion, annotationTypes) {
-      this.editor = orion;
-      this.orion = orion.getTextView();
-      this.model = orion.getModel();
-      this.ignoreNextChange = false;
-      this.changeInProgress = false;
-      this.selectionChanged = false;
-      this.myLine = 0;
-      this.deleteContent = "";
-      this.AT = annotationTypes;
-      this.annotations = {};
+    var OrionEditorAdapter = function (orion, collabClient, annotationTypes) {
+        this.editor = orion;
+        this.orion = orion.getTextView();
+        this.model = orion.getModel();
+        this.ignoreNextChange = false;
+        this.changeInProgress = false;
+        this.selectionChanged = false;
+        this.myLine = 0;
+        this.deleteContent = "";
+        this.AT = annotationTypes;
+        this.annotations = {};
+        this.collabClient = collabClient;
 
-      this.destroyCollabAnnotations();
+        this.destroyCollabAnnotations();
 
-      this._onChanging = this.onChanging.bind(this);
-      this._onChanged = this.onChanged.bind(this);
-      this._onCursorActivity = this.onCursorActivity.bind(this);
-      this._onFocus = this.onFocus.bind(this);
-      this._onBlur = this.onBlur.bind(this);
-      this._selectionListener = this.selectionListener.bind(this);
+        this._onChanging = this.onChanging.bind(this);
+        this._onChanged = this.onChanged.bind(this);
+        this._onCursorActivity = this.onCursorActivity.bind(this);
+        this._onFocus = this.onFocus.bind(this);
+        this._onBlur = this.onBlur.bind(this);
+        this._selectionListener = this.selectionListener.bind(this);
 
-      this.orion.addEventListener('ModelChanging', this._onChanging);
-      this.orion.addEventListener('ModelChanged', this._onChanged);
-      this.orion.addEventListener('cursorActivity', this._onCursorActivity);
-      this.orion.addEventListener('focus', this._onFocus);
-      this.orion.addEventListener('blur', this._onBlur);
-      this.orion.addEventListener('Selection', this._selectionListener)
+        this.orion.addEventListener('ModelChanging', this._onChanging);
+        this.orion.addEventListener('ModelChanged', this._onChanged);
+        this.orion.addEventListener('cursorActivity', this._onCursorActivity);
+        this.orion.addEventListener('focus', this._onFocus);
+        this.orion.addEventListener('blur', this._onBlur);
+        this.orion.addEventListener('Selection', this._selectionListener);
+
+        // Give initial cursor position
+        var cursor = this.editor.getSelection().start;
+        this.myLine = this.editor.getLineAtOffset(cursor);
     }
 
     // Removes all event listeners from the Orion instance.
     OrionEditorAdapter.prototype.detach = function () {
-      this.orion.removeEventListener('ModelChanging', this._onChanging);
-      this.orion.removeEventListener('ModelChanged', this._onChanged);
-      this.orion.removeEventListener('cursorActivity', this._onCursorActivity);
-      this.orion.removeEventListener('focus', this._onFocus);
-      this.orion.removeEventListener('blur', this._onBlur);
-      this.orion.removeEventListener('Selection', this._selectionListener);
+        this.orion.removeEventListener('ModelChanging', this._onChanging);
+        this.orion.removeEventListener('ModelChanged', this._onChanged);
+        this.orion.removeEventListener('cursorActivity', this._onCursorActivity);
+        this.orion.removeEventListener('focus', this._onFocus);
+        this.orion.removeEventListener('blur', this._onBlur);
+        this.orion.removeEventListener('Selection', this._selectionListener);
     };
 
     function OrionDocLength (doc) {
-      return doc.getModel().getCharCount();
+        return doc.getModel().getCharCount();
     }
 
     // Converts a Orion change array (as obtained from the 'changes' event
@@ -346,134 +362,134 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
     // by the 'change' event in Orion prior to version 4) into a
     // TextOperation and its inverse and returns them as a two-element array.
     OrionEditorAdapter.operationFromOrionChanges = function (changes, doc, deletedText) {
-      // Approach: Replay the changes, beginning with the most recent one, and
-      // construct the operation and its inverse. We have to convert the position
-      // in the pre-change coordinate system to an index. We have a method to
-      // convert a position in the coordinate system after all changes to an index,
-      // namely Orion's `indexFromPos` method. We can use the information of
-      // a single change object to convert a post-change coordinate system to a
-      // pre-change coordinate system. We can now proceed inductively to get a
-      // pre-change coordinate system for all changes in the linked list.
-      // A disadvantage of this approach is its complexity `O(n^2)` in the length
-      // of the linked list of changes.
+        // Approach: Replay the changes, beginning with the most recent one, and
+        // construct the operation and its inverse. We have to convert the position
+        // in the pre-change coordinate system to an index. We have a method to
+        // convert a position in the coordinate system after all changes to an index,
+        // namely Orion's `indexFromPos` method. We can use the information of
+        // a single change object to convert a post-change coordinate system to a
+        // pre-change coordinate system. We can now proceed inductively to get a
+        // pre-change coordinate system for all changes in the linked list.
+        // A disadvantage of this approach is its complexity `O(n^2)` in the length
+        // of the linked list of changes.
 
-      var docEndLength = OrionDocLength(doc) - changes[0].addedCharCount + changes[0].removedCharCount;
-      var operation    = new TextOperation().retain(docEndLength);
-      var inverse      = new TextOperation().retain(docEndLength);
+        var docEndLength = OrionDocLength(doc) - changes[0].addedCharCount + changes[0].removedCharCount;
+        var operation    = new TextOperation().retain(docEndLength);
+        var inverse      = new TextOperation().retain(docEndLength);
 
-      for (var i = changes.length - 1; i >= 0; i--) {
-        var change = changes[i];
+        for (var i = changes.length - 1; i >= 0; i--) {
+            var change = changes[i];
 
-        var fromIndex = change.start;
-        var restLength = docEndLength - fromIndex - change.removedCharCount;
+            var fromIndex = change.start;
+            var restLength = docEndLength - fromIndex - change.removedCharCount;
 
-        operation = operation.compose(new TextOperation()
-          .retain(fromIndex)
-          ['delete'](change.removedCharCount)
-          .insert(change.text)
-          .retain(restLength)
-          );
+            operation = operation.compose(new TextOperation()
+                .retain(fromIndex)
+                ['delete'](change.removedCharCount)
+                .insert(change.text)
+                .retain(restLength)
+            );
 
-        if (change.addedCharCount && change.removedCharCount) {
-          //REPLACE ACTION
-          inverse = new TextOperation()
-            .retain(fromIndex)
-            ['delete'](change.addedCharCount)
-            .insert(deletedText)
-            .retain(restLength)
-            .compose(inverse);
-        } else if (change.addedCharCount) {
-          //INSERT ACTION
-          inverse = new TextOperation()
-            .retain(fromIndex)
-            ['delete'](change.addedCharCount)
-            .retain(restLength)
-            .compose(inverse);
-        } else {
-          //DELETE ACTION
-          inverse = new TextOperation()
-            .retain(fromIndex)
-            .insert(deletedText)
-            .retain(restLength)
-            .compose(inverse);
+            if (change.addedCharCount && change.removedCharCount) {
+            //REPLACE ACTION
+            inverse = new TextOperation()
+                .retain(fromIndex)
+                ['delete'](change.addedCharCount)
+                .insert(deletedText)
+                .retain(restLength)
+                .compose(inverse);
+            } else if (change.addedCharCount) {
+            //INSERT ACTION
+            inverse = new TextOperation()
+                .retain(fromIndex)
+                ['delete'](change.addedCharCount)
+                .retain(restLength)
+                .compose(inverse);
+            } else {
+            //DELETE ACTION
+            inverse = new TextOperation()
+                .retain(fromIndex)
+                .insert(deletedText)
+                .retain(restLength)
+                .compose(inverse);
+            }
+
+            docEndLength += change.removedCharCount - change.text.length;
         }
 
-        docEndLength += change.removedCharCount - change.text.length;
-      }
-
-      return [operation, inverse];
+        return [operation, inverse];
     };
 
     // Singular form for backwards compatibility.
     OrionEditorAdapter.operationFromOrionChange =
-      OrionEditorAdapter.operationFromOrionChanges;
+        OrionEditorAdapter.operationFromOrionChanges;
 
     // Apply an operation to a Orion instance.
     OrionEditorAdapter.applyOperationToOrion = function (operation, orion) {
         var ops = operation.ops;
         var index = 0; // holds the current index into Orion's content
         for (var i = 0, l = ops.length; i < l; i++) {
-          var op = ops[i];
-          if (TextOperation.isRetain(op)) {
-            index += op;
-          } else if (TextOperation.isInsert(op)) {
-            orion.setText(op, index, i < (ops.length - 1) ? index : undefined);
-            index += op.length;
-          } else if (TextOperation.isDelete(op)) {
-            var from = index;
-            var to   = index - op;
-            orion.setText('', from, to);
-          }
+            var op = ops[i];
+            if (TextOperation.isRetain(op)) {
+                index += op;
+            } else if (TextOperation.isInsert(op)) {
+                orion.setText(op, index, i < (ops.length - 1) ? index : undefined);
+                index += op.length;
+            } else if (TextOperation.isDelete(op)) {
+                var from = index;
+                var to   = index - op;
+                orion.setText('', from, to);
+            }
         }
     };
 
     OrionEditorAdapter.prototype.registerCallbacks = function (cb) {
-      this.callbacks = cb;
+        this.callbacks = cb;
     };
 
     OrionEditorAdapter.prototype.onChanging = function (change) {
-      // By default, Orion's event order is the following:
-      // 1. 'ModelChanging', 2. 'ModelChanged'
-      // We want to fire save the deleted/replaced text during a 'modelChanging' event if applicable,
-      // so that we can use it to create the reverse operation used for the undo-stack after the model has changed.
-      if (change.removedCharCount > 0) {
-        this.deleteContent = this.orion.getText(change.start, change.start + change.removedCharCount);
-      }
+        // By default, Orion's event order is the following:
+        // 1. 'ModelChanging', 2. 'ModelChanged'
+        // We want to fire save the deleted/replaced text during a 'modelChanging' event if applicable,
+        // so that we can use it to create the reverse operation used for the undo-stack after the model has changed.
+        if (change.removedCharCount > 0) {
+            this.deleteContent = this.orion.getText(change.start, change.start + change.removedCharCount);
+        }
 
-      this.changeInProgress = true;
+        this.changeInProgress = true;
     };
 
     OrionEditorAdapter.prototype.onChanged = function (change) {
-      this.changeInProgress = true;
-      if (!this.ignoreNextChange) {
-        var pair = OrionEditorAdapter.operationFromOrionChanges([change], this.orion, this.deleteContent);
-        this.trigger('change', pair[0], pair[1]);
-      }
-      this.deleteContent = "";
-      if (this.selectionChanged) { this.trigger('selectionChange'); }
-      this.changeInProgress = false;
-      // this.ignoreNextChange = false;
+        this.changeInProgress = true;
+        if (!this.ignoreNextChange) {
+            var pair = OrionEditorAdapter.operationFromOrionChanges([change], this.orion, this.deleteContent);
+            this.trigger('change', pair[0], pair[1]);
+        }
+        this.deleteContent = "";
+        if (this.selectionChanged) { this.trigger('selectionChange'); }
+        this.changeInProgress = false;
+        // this.ignoreNextChange = false;
     };
 
     OrionEditorAdapter.prototype.onCursorActivity =
     OrionEditorAdapter.prototype.onFocus = function () {
-      if (this.changeInProgress) {
-        this.selectionChanged = true;
-      } else {
-        this.trigger('selectionChange');
-      }
+        if (this.changeInProgress) {
+            this.selectionChanged = true;
+        } else {
+            this.trigger('selectionChange');
+        }
     };
 
     OrionEditorAdapter.prototype.onBlur = function () {
-      if (!this.orion.somethingSelected()) { this.trigger('blur'); }
+        if (!this.orion.somethingSelected()) { this.trigger('blur'); }
     };
 
     OrionEditorAdapter.prototype.getValue = function () {
-      return this.orion.getText();
+        return this.orion.getText();
     };
 
     OrionEditorAdapter.prototype.getSelection = function () {
-      return this.myLine;
+        return new ot.Selection.createCursor(this.myLine);
     };
 
     OrionEditorAdapter.prototype.setSelection = function (selection) {
@@ -489,108 +505,102 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
     };
 
     var addStyleRule = (function () {
-      var added = {};
-      var styleElement = document.createElement('style');
-      document.documentElement.getElementsByTagName('head')[0].appendChild(styleElement);
-      var styleSheet = styleElement.sheet;
+        var added = {};
+        var styleElement = document.createElement('style');
+        document.documentElement.getElementsByTagName('head')[0].appendChild(styleElement);
+        var styleSheet = styleElement.sheet;
 
-      return function (css) {
-        if (added[css]) { return; }
-        added[css] = true;
-        styleSheet.insertRule(css, (styleSheet.cssRules || styleSheet.rules).length);
-      };
+        return function (css) {
+            if (added[css]) { return; }
+            added[css] = true;
+            styleSheet.insertRule(css, (styleSheet.cssRules || styleSheet.rules).length);
+        };
     }());
 
     OrionEditorAdapter.prototype.selectionListener = function(e) {
-      var currLine = this.editor.getLineAtOffset(e.newValue.start);
-      var lastLine = this.editor.getModel().getLineCount()-1;
-      var lineStartOffset = this.editor.getLineStart(currLine);
-      var offset = e.newValue.start;
+        var currLine = this.editor.getLineAtOffset(e.newValue.start);
+        var lastLine = this.editor.getModel().getLineCount()-1;
+        var lineStartOffset = this.editor.getLineStart(currLine);
+        var offset = e.newValue.start;
 
         if (offset) {
-          //decide whether or not it is worth sending (if line has changed or needs updating).
-          if (currLine !== this.myLine || currLine === lastLine || currLine === 0) {
-            // Send this change
-          } else {
-            return;
-          }
-      }
-
-      this.myLine = currLine;
-
-      if (this.changeInProgress) {
-        this.selectionChanged = true;
-      } else {
-        this.trigger('selectionChange');
-      }
-    };
-
-    OrionEditorAdapter.prototype.setOtherCursor = function (position, color, clientId) {
-      // var cursorPos = this.orion.posFromIndex(position);
-      // var cursorCoords = this.orion.cursorCoords(cursorPos);
-      // var cursorEl = document.createElement('span');
-      // cursorEl.className = 'other-client';
-      // cursorEl.style.display = 'inline-block';
-      // cursorEl.style.padding = '0';
-      // cursorEl.style.marginLeft = cursorEl.style.marginRight = '-1px';
-      // cursorEl.style.borderLeftWidth = '2px';
-      // cursorEl.style.borderLeftStyle = 'solid';
-      // cursorEl.style.borderLeftColor = color;
-      // cursorEl.style.height = (cursorCoords.bottom - cursorCoords.top) * 0.9 + 'px';
-      // cursorEl.style.zIndex = 0;
-      // cursorEl.setAttribute('data-clientid', clientId);
-      // return this.orion.setBookmark(cursorPos, { widget: cursorEl, insertLeft: true });
-    };
-
-    OrionEditorAdapter.prototype.setOtherSelectionRange = function (range, color, clientId) {
-      // var match = /^#([0-9a-fA-F]{6})$/.exec(color);
-      // if (!match) { throw new Error("only six-digit hex colors are allowed."); }
-      // var selectionClassName = 'selection-' + match[1];
-      // var rule = '.' + selectionClassName + ' { background: ' + color + '; }';
-      // addStyleRule(rule);
-
-      // var anchorPos = this.orion.posFromIndex(range.anchor);
-      // var headPos   = this.orion.posFromIndex(range.head);
-
-      // return this.orion.markText(
-      //   minPos(anchorPos, headPos),
-      //   maxPos(anchorPos, headPos),
-      //   { className: selectionClassName }
-      // );
-    };
-
-    OrionEditorAdapter.prototype.setOtherSelection = function (selection, color, clientId, name) {
-      this.updateLineAnnotation(clientId, selection, name, color);
-      var self = this;
-      return {
-        clear: function() {
-          self.destroyCollabAnnotations(clientId);
+            //decide whether or not it is worth sending (if line has changed or needs updating).
+            if (currLine !== this.myLine || currLine === lastLine || currLine === 0) {
+                // Send this change
+            } else {
+                return;
+            }
         }
-      };
+
+        this.myLine = currLine;
+
+        if (this.changeInProgress) {
+            this.selectionChanged = true;
+        } else {
+            this.trigger('selectionChange');
+        }
     };
 
-    OrionEditorAdapter.prototype.updateLineAnnotation = function(id, line = 0, name = 'unknown', color = '#000000') {
-      var viewModel = this.editor.getModel();
-      var annotationModel = this.editor.getAnnotationModel();
-      var lineStart = this.editor.mapOffset(viewModel.getLineStart(line));
-      if (lineStart === -1) return;
-      var ann = this.AT.createAnnotation(this.AT.ANNOTATION_COLLAB_LINE_CHANGED, lineStart, lineStart, name + " is editing");
-      ann.html = ann.html.substring(0, ann.html.indexOf('></div>')) + " style='background-color:" + color + "'><b>" + name.substring(0,2) + "</b></div>";
-      ann.peerId = id;
-      var peerId = id;
+    OrionEditorAdapter.prototype.setOtherSelection = function (selection, color, clientId) {
+        var peer = this.collabClient.getPeer(clientId);
+        var name = peer ? peer.name : undefined;
+        color = peer ? peer.color : color;
+        this.updateLineAnnotation(clientId, selection, name, color);
+        var self = this;
+        return {
+            clear: function() {
+                self.destroyCollabAnnotations(clientId);
+            }
+        };
+    };
 
-      /*if peer isn't being tracked yet, start tracking
-      * else replace previous annotation
-      */
-      if (!(peerId in this.annotations && this.annotations[peerId]._annotationModel)) {
-        this.annotations[peerId] = ann;
-        annotationModel.addAnnotation(this.annotations[peerId]);
-      } else {
-        var currAnn = this.annotations[peerId];
-        if (ann.start === currAnn.start) return;
-        annotationModel.replaceAnnotations([currAnn], [ann]);
-        this.annotations[peerId] = ann;
-      }
+    OrionEditorAdapter.prototype.updateLineAnnotation = function(id, selection, name, color) {
+        if (id === this.collabClient.getClientId()) {
+            // Don't add self
+            return;
+        }
+        name = name || 'Unknown';
+        color = color || '#000000';
+        var line = selection.ranges[0].head || 0;
+        var viewModel = this.editor.getModel();
+        var annotationModel = this.editor.getAnnotationModel();
+        var lineStart = this.editor.mapOffset(viewModel.getLineStart(line));
+        if (lineStart === -1) return;
+        var ann = this.AT.createAnnotation(this.AT.ANNOTATION_COLLAB_LINE_CHANGED, lineStart, lineStart, name + " is editing");
+        ann.html = ann.html.substring(0, ann.html.indexOf('></div>')) + " style='background-color:" + color + "'><b>" + name.substring(0,2) + "</b></div>";
+        ann.peerId = id;
+        var peerId = id;
+
+        /*if peer isn't being tracked yet, start tracking
+        * else replace previous annotation
+        */
+        if (!(peerId in this.annotations && this.annotations[peerId]._annotationModel)) {
+            this.annotations[peerId] = ann;
+            annotationModel.addAnnotation(this.annotations[peerId]);
+        } else {
+            var currAnn = this.annotations[peerId];
+            if (ann.start === currAnn.start) return;
+            annotationModel.replaceAnnotations([currAnn], [ann]);
+            this.annotations[peerId] = ann;
+        }
+    };
+
+    /**
+     * Update the line annotation of a peer without change its line number
+     * i.e. only updates name and color
+     * @param {string} id - clientId
+     */
+    OrionEditorAdapter.prototype.updateLineAnnotationStyle = function(id) {
+        var peer = this.collabClient.getPeer(id);
+        var name = peer ? peer.name : undefined;
+        var color = peer ? peer.color : undefined;
+        var annotation = this.annotations[id];
+        if (!annotation) {
+            return;
+        }
+        var cursor = annotation.start;
+        var selection = ot.Selection.createCursor(cursor);
+        this.updateLineAnnotation(id, selection, name, color);
     };
 
     OrionEditorAdapter.prototype.destroyCollabAnnotations = function(peerId) {
