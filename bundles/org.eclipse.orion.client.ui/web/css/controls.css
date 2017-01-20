@@ -13,6 +13,7 @@
 
 .navlink > span {
 	color: inherit;
+	vertical-align: text-bottom;
 }
 
 .nav_fakelink:hover {
@@ -1545,6 +1546,8 @@ html[dir="rtl"] .fileExplorerProgressDiv { /* ACGC */
 
 .treeAnnotation {
 	pointer-events: none;
+	display: inline-block;
+	vertical-align: bottom;
 }
 
 .navAnnotation {
@@ -1561,8 +1564,6 @@ html[dir="rtl"] .fileExplorerProgressDiv { /* ACGC */
 	color: #fff;
 	font-weight: bold;
 	margin: 0 2px;
-	position: relative;
-	top: -5px;
 }
 
 .treeAnnotation .overlay {
@@ -1572,4 +1573,5 @@ html[dir="rtl"] .fileExplorerProgressDiv { /* ACGC */
 	background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAcAAAAHCAYAAADEUlfTAAAAAXNSR0IArs4c6QAAAAZiS0dEAAAAAAAA+UO7fwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9sJEAQvB2JVdrAAAAAdaVRYdENvbW1lbnQAAAAAAENyZWF0ZWQgd2l0aCBHSU1QZC5lBwAAAD1JREFUCNdtjkESADAEAzemf69f66HMqGlOIhYiFRFRtSQBWAY7mzx+EDTL6sSgb1jTk7Q87rxyqe37fXsAa78gLyZnRgEAAAAASUVORK5CYII=");
     position: relative;
     left: -7px;
+	top: 7px;
 }
