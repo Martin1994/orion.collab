@@ -99,17 +99,28 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		 * Add or update a record of collaborator file annotation and request to update UI
 		 * 
 		 * @param {string} clientId -
-		 * @param {string} name -
 		 * @param {string} url -
 		 */
 		addOrUpdateCollabFileAnnotation: function(clientId, url) {
 			var peer = this.getPeer(clientId);
 			// Peer might be loading. Once it is loaded, this annotation will be automatically updated,
 			// so we can safely leave it blank.
-			var name = peer ? peer.name : '';
+			var name = peer ? peer.name : 'Unknown';
 			var color = peer ? peer.color : '#000000';
 			this.collabFileAnnotations[clientId] = new CollabFileAnnotation(name, color, url);
 			this._requestFileAnnotationUpdate();
+		},
+
+		/**
+		 * Remove a collaborator's file annotation by id and request to update UI
+		 * 
+		 * @param {string} clientId -
+		 */
+		removeCollabFileAnnotation: function(clientId) {
+			if (this.collabFileAnnotations.hasOwnProperty(clientId)) {
+				delete this.collabFileAnnotations[clientId];
+				this._requestFileAnnotationUpdate();
+			}
 		},
 
 		/**
@@ -197,8 +208,9 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		 * Remove a peer by its ID if it exists
 		 */
 		removePeer: function(clientId) {
-			if (this.peer.hasOwnProperty(clientId)) {
-				delete this.peer[clientId];
+			if (this.peers.hasOwnProperty(clientId)) {
+				delete this.peers[clientId];
+				this.removeCollabFileAnnotation(clientId);
 			}
 		},
 
@@ -206,7 +218,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		 * Remove all peers
 		 */
 		clearPeers: function() {
-			this.peer = {};
+			this.peers = {};
 		},
 
 		startOT: function(revision, operation, clients) {
