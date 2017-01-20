@@ -119,7 +119,9 @@ define(["require", "util", "channels", "jquery", "storage"], function (require, 
     IGNORE_MESSAGES = [];
   }
   // These are messages sent by clients who aren't "part" of the TogetherJS session:
-  var MESSAGES_WITHOUT_CLIENTID = ["who", "invite", "init-connection", "close_yourself"];
+  var MESSAGES_WITHOUT_CLIENTID = ["who", "invite", "init-connection", "close_yourself",
+    // Orion specific
+    "ack", "authenticated", "all_clients", "init-document"];
 
   // We ignore incoming messages from the channel until this is true:
   var readyForMessages = false;
