@@ -413,7 +413,9 @@ define([
 		//		},
 
 		_handleCollabChanged: function(evt) {
-			this.myTree.requestAnnotationRefresh();
+			if (this.myTree) {
+				this.myTree.requestAnnotationRefresh();
+			}
 		},
 
 		onModelCreate: function(modelEvent) {
