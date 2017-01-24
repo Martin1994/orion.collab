@@ -10,7 +10,7 @@
  ******************************************************************************/
 
 /*eslint-env browser, amd */
-define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot) {
+define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function(mCollabPeer, ot, mUIUtils) {
 
     'use strict';
 
@@ -128,7 +128,11 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
                 this.trigger('ack');
                 break;
             case "operation":
-                this.trigger('operation', msg.operation);
+                try {
+                    this.trigger('operation', msg.operation);
+                } catch(ex) {
+                    this.sendInit();
+                }
                 this.client.editor.markClean();
                 this.trigger('selection', msg.clientId, msg.selection);
                 break;
@@ -598,7 +602,8 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
         var cursor = selection.ranges[0].head || 0;
         var annotationModel = this.editor.getAnnotationModel();
         var ann = this.AT.createAnnotation(this.AT.ANNOTATION_COLLAB_LINE_CHANGED, cursor, cursor, name + " is editing");
-        ann.html = ann.html.substring(0, ann.html.indexOf('></div>')) + " style='background-color:" + color + "'><b>" + name.substring(0,2) + "</b></div>";
+        var initial = mUIUtils.getNameInitial(name);
+        ann.html = ann.html.substring(0, ann.html.indexOf('></div>')) + " style='background-color:" + color + "'><b>" + initial + "</b></div>";
         ann.peerId = id;
         var peerId = id;
 
