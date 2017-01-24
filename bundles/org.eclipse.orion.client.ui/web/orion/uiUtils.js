@@ -405,6 +405,23 @@ define([
 		}
 		return messages["justNow"];
 	}
+	
+	/**
+	 * Returns the initial of given name.
+	 * For standard names: "First [Midddles] Last", returns capital "FL";
+	 * For others, returns substr(0, 2).
+	 * 
+	 * @param {string} name -
+	 * @return {string} - initial
+	 */
+	function getNameInitial(name) {
+		var namePart = name.split(' ');
+		if (namePart.length >= 2) {
+			return (namePart[0].charAt(0) + namePart[namePart.length - 1].charAt(0)).toUpperCase();
+		} else {
+			return name.substr(0, 2);
+		}
+	}
 	//return module exports
 	return {
 		getUserKeyString: getUserKeyString,
@@ -416,6 +433,7 @@ define([
 		isFormElement: isFormElement,
 		path2FolderName: path2FolderName,
 		timeElapsed: timeElapsed,
-		displayableTimeElapsed: displayableTimeElapsed
+		displayableTimeElapsed: displayableTimeElapsed,
+		getNameInitial: getNameInitial
 	};
 });

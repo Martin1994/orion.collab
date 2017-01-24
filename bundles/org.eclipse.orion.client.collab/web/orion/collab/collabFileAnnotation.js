@@ -10,7 +10,7 @@
  ******************************************************************************/
 
 /*eslint-env browser, amd */
-define([], function() {
+define(['orion/uiUtils'], function(mUIUtils) {
 
     'use strict';
 
@@ -94,7 +94,7 @@ define([], function() {
 		 */
 		generateHTML: function() {
 			var element = document.createElement('div');
-			element.innerText = this.name.substr(0, 2);
+			element.innerText = mUIUtils.getNameInitial(this.name);
 			element.style.backgroundColor = this.color;
 			element.classList.add('collabAnnotation');
 			return element;
