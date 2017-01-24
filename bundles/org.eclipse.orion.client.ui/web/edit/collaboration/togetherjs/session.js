@@ -258,6 +258,14 @@ define(["require", "util", "channels", "jquery", "storage"], function (require, 
     sendHello(false);
   };
 
+  session.getSelf = function() {
+    return peers.Self;
+  };
+
+  session.getSelfLoaded = function() {
+    return peers._SelfLoaded;
+  };
+
   session.makeHelloMessage = function (helloBack) {
     var msg = {
       name: peers.Self.name || peers.Self.defaultName,
