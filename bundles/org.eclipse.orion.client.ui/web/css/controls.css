@@ -1548,20 +1548,21 @@ html[dir="rtl"] .fileExplorerProgressDiv { /* ACGC */
 	pointer-events: none;
 	display: inline-block;
 	vertical-align: bottom;
-}
-
-.navAnnotation {
-	padding: 2px;
+	padding: 0 2px;
+	height: 20px;
 }
 
 .navAnnotation .collabAnnotation {
 	display: inline-block;
-	width: 16px;
-	height: 16px;
+	width: 20px;
+	height: 20px;
 	border-radius: 50%;
-	font-size: 11px;
-	line-height: 14px;
+	font-size: 14px;
+	font-weight: bold;
+	font-family: monospace;
+	line-height: 18px;
 	text-align: center;
+	text-indent: -1px;
 	color: #fff;
 	margin: 0 2px;
 }
