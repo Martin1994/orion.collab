@@ -51,9 +51,6 @@ module.exports = function(options) {
 	});
 	
 	var userProject = mongoose.model('userProject', userProjectsSchema);
-	if (!mongoose.connection.readyState) {
-		mongoose.connect('mongodb://localhost/orion_multitenant');
-	}
 
 	app.use(bodyParser.json());
 	app.use(bodyParser.urlencoded({ extended: false }));
@@ -152,8 +149,9 @@ module.exports = function(options) {
 			res.end();
 		})
 		.catch(function(err){
-		  // just need one of these
-		  console.log('error:', err);
+			// just need one of these
+			console.log('error:', err);
+			res.end();
 		});
 	});
 	
