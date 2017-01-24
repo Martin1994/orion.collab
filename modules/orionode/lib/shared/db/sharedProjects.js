@@ -66,9 +66,6 @@ module.exports = function(options) {
 	});
 	
 	var sharedProject = mongoose.model('sharedProject', sharedProjectsSchema);
-	if (!mongoose.connection.readyState) {
-		mongoose.connect('mongodb://localhost/orion_multitenant');
-	}
 	
 	app.use(bodyParser.json());
 	app.use(bodyParser.urlencoded({ extended: false }));
