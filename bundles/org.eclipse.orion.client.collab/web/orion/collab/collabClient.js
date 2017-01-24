@@ -293,6 +293,11 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		socketConnected: function() {
 			var session = TogetherJS.require('session');
 			this.setClientId(session.clientId);
+			var self = this;
+			session.getSelfLoaded().then(function() {
+				var peerSelf = session.getSelf();
+				self.addOrUpdatePeer(new CollabPeer(session.clientId, peerSelf.name, peerSelf.color));
+			});
 			this.otSocketAdapter = new OrionTogetherJSAdapter(this, session.channel);
 			//this.otSocketAdapter = new OrionTogetherJSDelayAdapter(this, session.channel, 2500);
 			this.otSocketAdapter.authenticate();
@@ -320,6 +325,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 				});
 				this.collabMode = true;
 			} else {
+				TogetherJS(undefined);
 				this.collabMode = false;
 			}
 			this.clearPeers();
