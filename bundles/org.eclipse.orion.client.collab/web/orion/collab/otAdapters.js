@@ -18,6 +18,8 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
     var TextOperation = ot.TextOperation;
     var Selection = ot.Selection;
 
+    var INPUT_CHANGED_EVENT_INTERVAL = 250;
+
     /**
      * The socket adapter for OT using togetherjs as communitation socket
      *
@@ -95,7 +97,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
                 for (var clientId in msg.clients) {
                     if (msg.clients.hasOwnProperty(clientId)) {
                         var peerData = msg.clients[clientId];
-                        this.client.addOrUpdatePeer(new CollabPeer(clientId, peerData.name, peerData.color));
+                        this.client.addOrUpdatePeer(new CollabPeer(clientId, peerData.username, peerData.color));
                     }
                 }
                 this.client.startOT(msg.revision, msg.operation, msg.clients);
@@ -325,6 +327,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
         this.AT = annotationTypes;
         this.annotations = {};
         this.collabClient = collabClient;
+        this.inputChangedRequested = false;
 
         this.destroyCollabAnnotations();
 
@@ -341,10 +344,6 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
         this.orion.addEventListener('focus', this._onFocus);
         this.orion.addEventListener('blur', this._onBlur);
         this.orion.addEventListener('Selection', this._selectionListener);
-
-        // Give initial cursor position
-        var cursor = this.editor.getSelection().start;
-        this.myLine = this.editor.getLineAtOffset(cursor);
     }
 
     // Removes all event listeners from the Orion instance.
@@ -440,10 +439,12 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
             } else if (TextOperation.isInsert(op)) {
                 orion.setText(op, index, i < (ops.length - 1) ? index : undefined);
                 index += op.length;
+                this.requestInputChangedEvent();
             } else if (TextOperation.isDelete(op)) {
                 var from = index;
                 var to   = index - op;
                 orion.setText('', from, to);
+                this.requestInputChangedEvent();
             }
         }
         // Check if current line is changed
@@ -456,6 +457,14 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
 
     OrionEditorAdapter.prototype.registerCallbacks = function (cb) {
         this.callbacks = cb;
+
+        // Give initial cursor position
+        var cursor = this.editor.getSelection().start;
+        this.selectionListener({
+            newValue: {
+                start: cursor
+            }
+        });
     };
 
     OrionEditorAdapter.prototype.onChanging = function (change) {
@@ -480,6 +489,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
         if (this.selectionChanged) { this.trigger('selectionChange'); }
         this.changeInProgress = false;
         // this.ignoreNextChange = false;
+        this.requestInputChangedEvent();
     };
 
     OrionEditorAdapter.prototype.onCursorActivity =
@@ -500,7 +510,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
     };
 
     OrionEditorAdapter.prototype.getSelection = function () {
-        return new ot.Selection.createCursor(this.myLine);
+        return ot.Selection.createCursor(this.editor.getSelection().start);
     };
 
     OrionEditorAdapter.prototype.setSelection = function (selection) {
@@ -529,10 +539,10 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
     }());
 
     OrionEditorAdapter.prototype.selectionListener = function(e) {
-        var currLine = this.editor.getLineAtOffset(e.newValue.start);
+        var offset = e.newValue.start;
+        var currLine = this.editor.getLineAtOffset(offset);
         var lastLine = this.editor.getModel().getLineCount()-1;
         var lineStartOffset = this.editor.getLineStart(currLine);
-        var offset = e.newValue.start;
 
         if (offset) {
             //decide whether or not it is worth sending (if line has changed or needs updating).
@@ -545,6 +555,14 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
 
         this.myLine = currLine;
 
+        // Self-tracking
+        var clientId = this.collabClient.getClientId();
+        var peer = this.collabClient.getPeer(clientId);
+        var name = peer ? peer.name : undefined;
+        var color = peer ? peer.color : color;
+        var selection = ot.Selection.createCursor(offset);
+        this.updateLineAnnotation(clientId, selection, name, color);
+
         if (this.changeInProgress) {
             this.selectionChanged = true;
         } else {
@@ -553,6 +571,14 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
     };
 
     OrionEditorAdapter.prototype.setOtherSelection = function (selection, color, clientId) {
+        if (clientId === this.collabClient.getClientId()) {
+            // Don't update self by remote
+            return {
+                clear: function() {
+                    // NOOP
+                }
+            };
+        }
         var peer = this.collabClient.getPeer(clientId);
         var name = peer ? peer.name : undefined;
         color = peer ? peer.color : color;
@@ -567,18 +593,11 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
 
     OrionEditorAdapter.prototype.updateLineAnnotation = function(id, selection, name, color, force) {
         force = !!force;
-        if (id === this.collabClient.getClientId()) {
-            // Don't add self
-            return;
-        }
         name = name || 'Unknown';
         color = color || '#000000';
-        var line = selection.ranges[0].head || 0;
-        var viewModel = this.editor.getModel();
+        var cursor = selection.ranges[0].head || 0;
         var annotationModel = this.editor.getAnnotationModel();
-        var lineStart = this.editor.mapOffset(viewModel.getLineStart(line));
-        if (lineStart === -1) return;
-        var ann = this.AT.createAnnotation(this.AT.ANNOTATION_COLLAB_LINE_CHANGED, lineStart, lineStart, name + " is editing");
+        var ann = this.AT.createAnnotation(this.AT.ANNOTATION_COLLAB_LINE_CHANGED, cursor, cursor, name + " is editing");
         ann.html = ann.html.substring(0, ann.html.indexOf('></div>')) + " style='background-color:" + color + "'><b>" + name.substring(0,2) + "</b></div>";
         ann.peerId = id;
         var peerId = id;
@@ -656,6 +675,29 @@ define(['orion/collab/collabPeer', 'orion/collab/ot'], function(mCollabPeer, ot)
     OrionEditorAdapter.prototype.registerRedo = function (redoFn) {
       // this.orion.redo = redoFn;
       this.orion.setAction("redo", redoFn);
+    };
+
+    /**
+     * Trigger a delayed InputChanged event.
+     * In collab mode, client-side auto saving is disabled. As a result, the
+     * syntax checker won't work. So here we simulates a InputChanged event.
+     */
+    OrionEditorAdapter.prototype.requestInputChangedEvent = function() {
+        if (!this.inputChangedRequested) {
+            this.inputChangedRequested = true;
+            var self = this;
+            var editor = self.collabClient.editor;
+            setTimeout(function() {
+                editor.onInputChanged({
+                    type: "InputChanged", //$NON-NLS-0$
+                    title: editor.getTitle(),
+                    message: null,
+                    contents: editor.getText(),
+                    contentsSaved: true
+                });
+                self.inputChangedRequested = false;
+            }, INPUT_CHANGED_EVENT_INTERVAL);
+        }
     };
 
     function OrionSocketAdapter (socket) {

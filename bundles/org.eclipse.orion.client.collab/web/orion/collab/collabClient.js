@@ -40,6 +40,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		this.fileClient = fileClient;
 		this.textView = null;
 		var self = this;
+		this.collabMode = false;
 		this.clientId = "";
 		this.fileClient.addEventListener('Changed', self.sendFileOperation.bind(self));
 		this.editor.addEventListener('ModelLoaded', function(event) {self.viewInstalled.call(self, event);});
@@ -57,7 +58,8 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		this.ot = null;
 		this.otOrionAdapter = null;
 		this.otSocketAdapter = null;
-		window.addEventListener('hashchange', function() {self.destroyOT.call(self);});
+		window.addEventListener('hashchange', function() { self.destroyOT(); });
+		window.addEventListener('hashchange', function() { self.updateSelfFileAnnotation(); });
 		this.awaitingClients = false;
 		this.collabFileAnnotations = {};
 		// Timeout id to indicate whether a delayed update has already been assigned
@@ -105,8 +107,8 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 			var peer = this.getPeer(clientId);
 			// Peer might be loading. Once it is loaded, this annotation will be automatically updated,
 			// so we can safely leave it blank.
-			var name = peer ? peer.name : 'Unknown';
-			var color = peer ? peer.color : '#000000';
+			var name = (peer && peer.name) ? peer.name : 'Unknown';
+			var color = (peer && peer.color) ? peer.color : '#000000';
 			this.collabFileAnnotations[clientId] = new CollabFileAnnotation(name, color, url);
 			this._requestFileAnnotationUpdate();
 		},
@@ -126,7 +128,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		/**
 		 * Request a file annotation UI update
 		 */
-		_requestFileAnnotationUpdate() {
+		_requestFileAnnotationUpdate: function() {
 			var self = this;
 			if (!this.collabFileAnnotationsUpdateTimeoutId) {
 				// No delayed update is assigned. Assign one.
@@ -161,8 +163,17 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		 * 
 		 * @return {CollabFileAnnotation} -
 		 */
-		getCollabFileAnnotation: function (clientId) {
+		getCollabFileAnnotation: function(clientId) {
 			return this.collabFileAnnotations[clientId];
+		},
+
+		/**
+		 * Update the current client's file annotation
+		 */
+		updateSelfFileAnnotation: function() {
+			if (this.collabMode) {
+				this.addOrUpdateCollabFileAnnotation(this.getClientId(), this.maybeTransformLocation('/file/' + this.currentDoc()));
+			}
 		},
 
 		/**
@@ -286,6 +297,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 			//this.otSocketAdapter = new OrionTogetherJSDelayAdapter(this, session.channel, 2500);
 			this.otSocketAdapter.authenticate();
 			this.inputManager.collabRunning = true;
+			this.updateSelfFileAnnotation();
 		},
 
 		socketDisconnected: function() {
@@ -298,14 +310,20 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		projectChanged: function(projectSessionID) {
 			var self = this;
 			// Initialize TogetherJS
-			TogetherJS(projectSessionID);
-			TogetherJS.once('ready', function() {
-				self.socketConnected();
-			});
-			TogetherJS.once('close', function() {
-				self.socketDisconnected();
-			});
+			if (projectSessionID) {
+				TogetherJS(projectSessionID);
+				TogetherJS.once('ready', function() {
+					self.socketConnected();
+				});
+				TogetherJS.once('close', function() {
+					self.socketDisconnected();
+				});
+				this.collabMode = true;
+			} else {
+				this.collabMode = false;
+			}
 			this.clearPeers();
+			this.resetCollabFildAnnotation();
 		},
 
 		getDocPeers: function() {
