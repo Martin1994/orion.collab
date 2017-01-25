@@ -297,12 +297,12 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 			session.getSelfLoaded().then(function() {
 				var peerSelf = session.getSelf();
 				self.addOrUpdatePeer(new CollabPeer(session.clientId, peerSelf.name, peerSelf.color));
+				self.updateSelfFileAnnotation();
 			});
 			this.otSocketAdapter = new OrionTogetherJSAdapter(this, session.channel);
 			//this.otSocketAdapter = new OrionTogetherJSDelayAdapter(this, session.channel, 2500);
 			this.otSocketAdapter.authenticate();
 			this.inputManager.collabRunning = true;
-			this.updateSelfFileAnnotation();
 		},
 
 		socketDisconnected: function() {
