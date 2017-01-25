@@ -431,25 +431,45 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     OrionEditorAdapter.operationFromOrionChange =
         OrionEditorAdapter.operationFromOrionChanges;
 
-    // Apply an operation to a Orion instance.
+    /**
+     *  Apply an operation to a Orion instance.
+     * 
+     * @throws {Error} operation bound check failed
+     * 
+     * @param {ot.Operation} operation -
+     * @param {TextView} orion - 
+     */
     OrionEditorAdapter.prototype.applyOperationToOrion = function (operation, orion) {
         var ops = operation.ops;
         var index = 0; // holds the current index into Orion's content
         var oldLine = this.myLine; // Track the current line before this operation
+        var docLength = this.orion.getModel().getCharCount(); // Track the doc length and verify it at the end
         for (var i = 0, l = ops.length; i < l; i++) {
             var op = ops[i];
             if (TextOperation.isRetain(op)) {
                 index += op;
+                if (index > docLength || index < 0) {
+                    throw new Error('Invalid retain.');
+                }
             } else if (TextOperation.isInsert(op)) {
                 orion.setText(op, index, i < (ops.length - 1) ? index : undefined);
                 index += op.length;
+                docLength += op.length;
                 this.requestInputChangedEvent();
             } else if (TextOperation.isDelete(op)) {
                 var from = index;
                 var to   = index - op;
+                docLength += op;
+                if (to < 0) {
+                    throw new Error('Invalid deletion');
+                }
                 orion.setText('', from, to);
                 this.requestInputChangedEvent();
             }
+        }
+        // Verify doc length
+        if (index !== docLength) {
+            throw new Error('Invalid doc length. Unsynchronized content.');
         }
         // Check if current line is changed
         var deltaLine = this.myLine - oldLine;
