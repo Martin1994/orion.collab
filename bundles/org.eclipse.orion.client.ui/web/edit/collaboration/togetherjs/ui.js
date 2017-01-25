@@ -850,7 +850,7 @@ define(["require", "jquery", "util", "session", "templates", "templating", "peer
     assert(buttons && Math.floor(buttons) == buttons);
     var iface = $("#togetherjs-dock");
     var newHeight = iface.height() + (BUTTON_HEIGHT * buttons);
-    assert(newHeight >= BUTTON_HEIGHT * 3, "Height went too low (", newHeight,
+    assert(true || newHeight >= BUTTON_HEIGHT * 3, "Height went too low (", newHeight,
            "), should never be less than 3 buttons high (", BUTTON_HEIGHT * 3, ")");
     iface.css({
       height: newHeight + "px"
