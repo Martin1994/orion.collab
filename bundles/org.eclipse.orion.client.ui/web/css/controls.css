@@ -1562,7 +1562,6 @@ html[dir="rtl"] .fileExplorerProgressDiv { /* ACGC */
 	font-family: monospace;
 	line-height: 18px;
 	text-align: center;
-	text-indent: -1px;
 	color: #fff;
 	margin: 0 2px;
 }
