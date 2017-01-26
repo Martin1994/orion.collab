@@ -170,6 +170,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
                 // hello message initiates a new sequence of annotations, so it clears
                 // all the existing annotations.
                 this.client.resetCollabFildAnnotation();
+                this.client.updateSelfFileAnnotation();
             case 'hello-back':
                 // Both hello and hello-back contains client info (name, color, etc.),
                 // so we update the record of this peer
