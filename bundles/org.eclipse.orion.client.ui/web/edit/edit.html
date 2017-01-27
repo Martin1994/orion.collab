@@ -18,26 +18,6 @@
 				}
 				require(["orion/splash"], load, load);
 			}, self.errback);
-			require(["collaboration/build/togetherjs-min.js"] , function() {
-				// TogetherJS.config("hubBase", "http://hubserver.mybluemix.net/");
-				TogetherJS.config("hubBase", "http://localhost:8080");
-				TogetherJS.config("getUserName", 
-					function() {
-						return new Promise(function(resolve, reject) {
-							$.ajax({
-								url: '/login',
-								type: 'POST',
-								success: function(result) {
-									resolve(result.UserName);
-								},
-								fail: function() {
-									reject();
-								}
-							});
-						});
-					}
-				);
-			});
 		</script>
 	</head>
 
