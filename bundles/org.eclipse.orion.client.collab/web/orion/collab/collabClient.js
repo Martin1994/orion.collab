@@ -92,7 +92,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		/**
 		 * Reset the record of collaborator file annotation and request to update UI
 		 */
-		resetCollabFildAnnotation: function() {
+		resetCollabFileAnnotation: function() {
 			this.collabFileAnnotations = {};
 			this._requestFileAnnotationUpdate();
 		},
@@ -291,45 +291,40 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		},
 
 		socketConnected: function() {
-			var session = TogetherJS.require('session');
-			this.setClientId(session.clientId);
-			var self = this;
-			session.getSelfLoaded().then(function() {
-				var peerSelf = session.getSelf();
-				self.addOrUpdatePeer(new CollabPeer(session.clientId, peerSelf.name, peerSelf.color));
-				self.updateSelfFileAnnotation();
-			});
-			this.otSocketAdapter = new OrionTogetherJSAdapter(this, session.channel);
+			this.setClientId(this.socket.getClientId());
+			this.updateSelfFileAnnotation();
+			this.otSocketAdapter = new OrionCollabSocketAdapter(this, this.socket);
 			//this.otSocketAdapter = new OrionTogetherJSDelayAdapter(this, session.channel, 2500);
 			this.otSocketAdapter.authenticate();
 			this.inputManager.collabRunning = true;
 		},
 
 		socketDisconnected: function() {
+			this.socket = null;
 			this.otSocketAdapter = null;
 			this.inputManager.collabRunning = false;
 			this.destroyOT();
-			this.resetCollabFildAnnotation();
+			this.resetCollabFileAnnotation();
 		},
 
 		projectChanged: function(projectSessionID) {
 			var self = this;
-			// Initialize TogetherJS
+			// Initialize collab socket
 			if (projectSessionID) {
-				TogetherJS(projectSessionID);
-				TogetherJS.once('ready', function() {
+				this.socket = new mCollabSocket.CollabSocket(projectSessionID);
+				socket.once('ready', function() {
 					self.socketConnected();
 				});
-				TogetherJS.once('close', function() {
+				socket.once('close', function() {
 					self.socketDisconnected();
 				});
 				this.collabMode = true;
 			} else {
-				TogetherJS(undefined);
+				// TODO: Cleanup
 				this.collabMode = false;
 			}
 			this.clearPeers();
-			this.resetCollabFildAnnotation();
+			this.resetCollabFileAnnotation();
 		},
 
 		getDocPeers: function() {

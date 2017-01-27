@@ -21,33 +21,25 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     var INPUT_CHANGED_EVENT_INTERVAL = 250;
 
     /**
-     * The socket adapter for OT using togetherjs as communitation socket
+     * The abstract socket adapter for OT
      *
+     * @abstract
      * @class
-     * @name orion.collab.OrionTogetherJSAdapter
+     * @name orion.collab.OrionSocketAdapter
      *
      * @param {orion.collabClient.CollabClient} client -
-     * @param {TogetherJS.Channel} socket -
      */
-    var OrionTogetherJSAdapter = function(client, socket) {
-        var self = this;
-
+    var OrionSocketAdapter = function(client) {
         this.client = client;
-        this.socket = socket;
         this.callbacks = [];
-
-        // Register incoming message handler
-        this.socket.on('message', function(msg) {
-            self._onMessage(msg);
-        });
     };
 
-    OrionTogetherJSAdapter.prototype.constructor = OrionTogetherJSAdapter;
+    OrionSocketAdapter.prototype.constructor = OrionSocketAdapter;
     
     /**
      * Send authenticate message
      */
-    OrionTogetherJSAdapter.prototype.authenticate = function() {
+    OrionSocketAdapter.prototype.authenticate = function() {
         var msg = {
             'type': 'authenticate',
             'token': localStorage.getItem('orionSocket.authToken'),
@@ -58,11 +50,13 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
 
     /**
      * Send text
+     * 
+     * Implement this.
      *
      * @param {string} text -
      */
-    OrionTogetherJSAdapter.prototype.send = function(text) {
-        this.socket.send(text);
+    OrionSocketAdapter.prototype.send = function(text) {
+        throw new Error('Not implemented.');
     };
 
     /**
@@ -70,7 +64,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      *
      * @param {string} msg -
      */
-    OrionTogetherJSAdapter.prototype._onMessage = function(msg) {
+    OrionSocketAdapter.prototype._onMessage = function(msg) {
         if (msg.doc) {
             this._onDocMessage(msg);
         } else {
@@ -83,13 +77,9 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      *
      * @param {string} msg -
      */
-    OrionTogetherJSAdapter.prototype._onDocMessage = function(msg) {
+    OrionSocketAdapter.prototype._onDocMessage = function(msg) {
         if (msg.doc !== this.client.currentDoc() || !this.client.textView) {
             return;
-        }
-        var type = msg.type;
-        if (type.substr(0, 11) === 'togetherjs.') {
-            type = type.substr(11);
         }
         switch(type) {
             case "init-document":
@@ -150,6 +140,198 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      *
      * @param {string} msg -
      */
+    OrionSocketAdapter.prototype._onSessionMessage = function(msg) {
+        var type = msg.type;
+        switch (type) {
+            case 'file_operation':
+                this.client.handleFileOperation(msg);
+                break;
+        }
+    };
+
+    /**
+     * Send the initial message
+     */
+    OrionSocketAdapter.prototype.sendInit = function() {
+        var msg = {
+            'type': 'join-document',
+            'doc': this.client.currentDoc(),
+            'clientId': this.client.getClientId()
+        };
+
+        this.send(JSON.stringify(msg));
+    }
+
+    /**
+     * Send OT operation
+     * @param {number} revision -
+     * @param {OT.Operation} operation -
+     * @param {OT.Selection} selection -
+     */
+    OrionSocketAdapter.prototype.sendOperation = function(revision, operation, selection) {
+        var myDoc = this.client.currentDoc();
+        var msg = {
+            'type': 'operation',
+            'revision': revision,
+            'operation': operation,
+            'selection': selection,
+            'doc': myDoc,
+            'clientId': this.client.getClientId()
+        };
+        this.send(JSON.stringify(msg));
+        this.client.editor.markClean();
+    };
+
+    /**
+     * Send OT selection
+     * @param {OT.Selection} selection -
+     */
+    OrionSocketAdapter.prototype.sendSelection = function (selection) {
+        var myDoc = this.client.currentDoc();
+        var msg = {
+            'type': 'selection',
+            'selection': selection,
+            'doc': myDoc,
+            'clientId': this.client.getClientId()
+        };
+        this.send(JSON.stringify(msg));
+    };
+
+    /**
+     * Register callbacks.
+     * We won't use EventTarget because OT uses registerCallbacks/trigger to
+     * perform event operations.
+     *
+     * @param {Object.<string, (Function|Array.<Function>)>} cb - callbacks
+     */
+    OrionSocketAdapter.prototype.registerCallbacks = function (cb) {
+        this.callbacks = cb;
+    };
+
+    /**
+     * Trigger an event.
+     *
+     * @param {Object} event -
+     */
+    OrionSocketAdapter.prototype.trigger = function (event) {
+        if (!this.client.textView) return;
+        var args = Array.prototype.slice.call(arguments, 1);
+        var action = this.callbacks && this.callbacks[event];
+        if (action) { action.apply(this, args); }
+    };
+
+    /**
+     * The socket adapter for OT using CollabSocket as the communitation socket
+     *
+     * @class
+     * @extends orion.collab.OrionSocketAdapter
+     * @name orion.collab.OrionCollabSocketAdapter
+     *
+     * @param {orion.collabClient.CollabClient} client -
+     * @param {orion.collabClient.CollabSocket} socket -
+     */
+    var OrionCollabSocketAdapter = function(client, socket) {
+        OrionSocketAdapter.call(this, client);
+
+        var self = this;
+        this.socket = socket;
+
+        // Register incoming message handler
+        this.socket.on('message', function(msg) {
+            self._onMessage(msg);
+        });
+    };
+
+    OrionCollabSocketAdapter.prototype = Object.create(OrionSocketAdapter.prototype);
+    OrionCollabSocketAdapter.prototype.constructor = OrionCollabSocketAdapter;
+
+    /**
+     * Send text
+     *
+     * @param {string} text -
+     */
+    OrionCollabSocketAdapter.prototype.send = function(text) {
+        this.socket.send(text);
+    };
+
+    /**
+     * Session Message handler
+     *
+     * @param {string} msg -
+     */
+    OrionCollabSocketAdapter.prototype._onDocMessage = function(msg) {
+        var type = msg.type;
+        if (type.substr(0, 11) === 'collab.') {
+            type = type.substr(11);
+        }
+        OrionSocketAdapter.prototype._onDocMessage.call(this, msg);
+    };
+
+    /**
+     * Session Message handler
+     *
+     * @param {string} msg -
+     */
+    OrionCollabSocketAdapter.prototype._onSessionMessage = function(msg) {
+        var type = msg.type;
+        if (type.substr(0, 11) === 'collab.') {
+            type = type.substr(11);
+        }
+        OrionSocketAdapter.prototype._onSessionMessage.call(this, msg);
+    };
+
+    /**
+     * The socket adapter for OT using togetherjs as the communitation socket
+     *
+     * @class
+     * @extends orion.collab.OrionSocketAdapter
+     * @name orion.collab.OrionTogetherJSAdapter
+     *
+     * @param {orion.collabClient.CollabClient} client -
+     * @param {TogetherJS.Channel} socket -
+     */
+    var OrionTogetherJSAdapter = function(client, socket) {
+        OrionSocketAdapter.call(this, client);
+
+        var self = this;
+        this.socket = socket;
+
+        // Register incoming message handler
+        this.socket.on('message', function(msg) {
+            self._onMessage(msg);
+        });
+    };
+
+    OrionTogetherJSAdapter.prototype = Object.create(OrionSocketAdapter.prototype);
+    OrionTogetherJSAdapter.prototype.constructor = OrionTogetherJSAdapter;
+
+    /**
+     * Send text
+     *
+     * @param {string} text -
+     */
+    OrionTogetherJSAdapter.prototype.send = function(text) {
+        this.socket.send(text);
+    };
+
+    /**
+     * Session Message handler
+     *
+     * @param {string} msg -
+     */
+    OrionTogetherJSAdapter.prototype._onDocMessage = function(msg) {
+        var type = msg.type;
+        if (type.substr(0, 11) === 'togetherjs.') {
+            type = type.substr(11);
+        }
+        OrionSocketAdapter.prototype._onDocMessage.call(this, msg);
+    };
+
+    /**
+     * Session Message handler
+     *
+     * @param {string} msg -
+     */
     OrionTogetherJSAdapter.prototype._onSessionMessage = function(msg) {
         var type = msg.type;
         if (type.substr(0, 11) === 'togetherjs.') {
@@ -169,7 +351,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
                 // Listen to the hello message in order to track everyone's current doc.
                 // hello message initiates a new sequence of annotations, so it clears
                 // all the existing annotations.
-                this.client.resetCollabFildAnnotation();
+                this.client.resetCollabFileAnnotation();
                 this.client.updateSelfFileAnnotation();
             case 'hello-back':
                 // Both hello and hello-back contains client info (name, color, etc.),
@@ -192,81 +374,10 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
                 this.trigger('client_update', msg.clientId, msg);
                 break;
 
-            case 'file_operation':
-                this.client.handleFileOperation(msg);
+            default:
+                OrionSocketAdapter.prototype._onSessionMessage.call(this, msg);
                 break;
         }
-    };
-
-    /**
-     * Send the initial message
-     */
-    OrionTogetherJSAdapter.prototype.sendInit = function() {
-        var msg = {
-            'type': 'join-document',
-            'doc': this.client.currentDoc(),
-            'clientId': this.client.getClientId()
-        };
-
-        this.send(JSON.stringify(msg));
-    }
-
-    /**
-     * Send OT operation
-     * @param {number} revision -
-     * @param {OT.Operation} operation -
-     * @param {OT.Selection} selection -
-     */
-    OrionTogetherJSAdapter.prototype.sendOperation = function(revision, operation, selection) {
-        var myDoc = this.client.currentDoc();
-        var msg = {
-            'type': 'operation',
-            'revision': revision,
-            'operation': operation,
-            'selection': selection,
-            'doc': myDoc,
-            'clientId': this.client.getClientId()
-        };
-        this.send(JSON.stringify(msg));
-        this.client.editor.markClean();
-    };
-
-    /**
-     * Send OT selection
-     * @param {OT.Selection} selection -
-     */
-    OrionTogetherJSAdapter.prototype.sendSelection = function (selection) {
-        var myDoc = this.client.currentDoc();
-        var msg = {
-            'type': 'selection',
-            'selection': selection,
-            'doc': myDoc,
-            'clientId': this.client.getClientId()
-        };
-        this.send(JSON.stringify(msg));
-    };
-
-    /**
-     * Register callbacks.
-     * We won't use EventTarget because OT uses registerCallbacks/trigger to
-     * perform event operations.
-     *
-     * @param {Object.<string, (Function|Array.<Function>)>} cb - callbacks
-     */
-    OrionTogetherJSAdapter.prototype.registerCallbacks = function (cb) {
-        this.callbacks = cb;
-    };
-
-    /**
-     * Trigger an event.
-     *
-     * @param {Object} event -
-     */
-    OrionTogetherJSAdapter.prototype.trigger = function (event) {
-        if (!this.client.textView) return;
-        var args = Array.prototype.slice.call(arguments, 1);
-        var action = this.callbacks && this.callbacks[event];
-        if (action) { action.apply(this, args); }
     };
 
     /**
@@ -277,7 +388,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      * 
      * @class
      * @name orion.collab.OrionTogetherJSDelayAdapter
-     * @extends orion.collab.OrionTogetherJSAdapter
+     * @extends orion.collab.OrionSocketAdapter
      *
      * @param {orion.collabClient.CollabClient} client -
      * @param {TogetherJS.Channel} socket -
@@ -285,11 +396,11 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      *     actions are delayed so the actual lag is doubled.
      */
     var OrionTogetherJSDelayAdapter = function(client, socket, delay) {
-        OrionTogetherJSAdapter.apply(this, arguments);
+        OrionSocketAdapter.apply(this, arguments);
         this.delay = delay;
     };
 
-    OrionTogetherJSDelayAdapter.prototype = Object.create(OrionTogetherJSAdapter.prototype);
+    OrionTogetherJSDelayAdapter.prototype = Object.create(OrionSocketAdapter.prototype);
     OrionTogetherJSDelayAdapter.prototype.constructor = OrionTogetherJSDelayAdapter;
 
     /**
@@ -301,7 +412,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         var self = this;
         setTimeout(function() {
             if (self.socket.socket) {
-                OrionTogetherJSAdapter.prototype.send.call(self, text);
+                OrionSocketAdapter.prototype.send.call(self, text);
             }
         }, this.delay);
     };
@@ -315,7 +426,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         var self = this;
         setTimeout(function() {
             if (self.socket.socket) {
-                OrionTogetherJSAdapter.prototype._onMessage.call(self, msg);
+                OrionSocketAdapter.prototype._onMessage.call(self, msg);
             }
         }, this.delay);
     };
@@ -726,69 +837,10 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         }
     };
 
-    function OrionSocketAdapter (socket) {
-      this.socket = socket;
-
-      var self = this;
-      socket.onmessage = function(event) {
-        var msg = JSON.parse(event.data);
-
-        switch(msg.type) {
-          case "client_left":
-            self.trigger('client_left', msg.clientId);
-            break;
-          case "set_name":
-            self.trigger('set_name', msg.clientId, msg.name);
-            break;
-          case "ack":
-            self.trigger('ack');
-            break;
-          case "operation":
-            self.trigger('operation', msg.operation);
-            self.trigger('selection', msg.clientId, msg.selection);
-            break;
-          case "selection":
-            self.trigger('selection', clientId, selection);
-            break;
-          case "reconnect":
-            self.trigger('reconnect');
-            break;
-        }
-      }
-    };
-
-    OrionSocketAdapter.prototype.sendOperation = function (revision, operation, selection) {
-      var msg = {
-        'type': 'operation',
-        'revision': revision,
-        'operation': operation,
-        'selection': selection
-      };
-      this.socket.send(JSON.stringify(msg));
-    };
-
-    OrionSocketAdapter.prototype.sendSelection = function (selection) {
-        var msg = {
-        'type': 'selection',
-        'selection': selection
-      };
-      this.socket.send(JSON.stringify(msg));
-    };
-
-    OrionSocketAdapter.prototype.registerCallbacks = function (cb) {
-      this.callbacks = cb;
-    };
-
-    OrionSocketAdapter.prototype.trigger = function (event) {
-      var args = Array.prototype.slice.call(arguments, 1);
-      var action = this.callbacks && this.callbacks[event];
-      if (action) { action.apply(this, args); }
-    };
-
     return {
-        OrionTogetherJSAdapter: OrionTogetherJSAdapter,
+        OrionCollabSocketAdapter: OrionCollabSocketAdapter,
         OrionTogetherJSDelayAdapter: OrionTogetherJSDelayAdapter,
-        OrionSocketAdapter: OrionSocketAdapter,
+        OrionTogetherJSAdapter: OrionTogetherJSAdapter,
         OrionEditorAdapter, OrionEditorAdapter
     };
 });
