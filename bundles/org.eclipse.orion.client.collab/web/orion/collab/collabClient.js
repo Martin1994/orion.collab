@@ -378,12 +378,12 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 				var operation = evt.created ? 'created' : evt.moved ? 'moved' : evt.deleted ? 'deleted' : evt.copied ? 'copied' : '';
 				if (operation) {
 				    var msg = {
-						'type': 'file_operation',
+						'type': 'file-operation',
 						'operation': operation,
 						'data': evt[operation],
 						'clientId': this.getClientId()
 				    };
-				    this.otSocketAdapter.send(msg);
+					this.otSocketAdapter.send(JSON.stringify(msg));
 				}
 			}
 			this.ignoreNextFileOperation = false;

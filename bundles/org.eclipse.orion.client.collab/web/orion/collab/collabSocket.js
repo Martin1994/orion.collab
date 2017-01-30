@@ -15,8 +15,8 @@
 define(['orion/EventTarget'], function(EventTarget) {
     'use strict;'
 
-	var hubUrl = "ws://localhost:8082/";
-    var DEBUG = false;
+    var HUB_URL = "ws://localhost:8082/";
+    var DEBUG = true;
 
     /**
      * Collab socket client
@@ -29,7 +29,7 @@ define(['orion/EventTarget'], function(EventTarget) {
 	function CollabSocket(sessionId) {
         var self = this;
 
-        this.socket = new WebSocket(hubUrl + sessionId);
+        this.socket = new WebSocket(HUB_URL + sessionId);
 
         this.socket.onopen = function() {
             self.dispatchEvent({
