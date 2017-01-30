@@ -1545,7 +1545,6 @@ html[dir="rtl"] .fileExplorerProgressDiv { /* ACGC */
 }
 
 .treeAnnotation {
-	pointer-events: none;
 	display: inline-block;
 	vertical-align: bottom;
 	padding: 0 2px;
@@ -1564,6 +1563,7 @@ html[dir="rtl"] .fileExplorerProgressDiv { /* ACGC */
 	text-align: center;
 	color: #fff;
 	margin: 2px;
+	cursor: pointer;
 }
 
 .treeAnnotation .overlay {

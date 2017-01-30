@@ -147,7 +147,7 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 			// so we can safely leave it blank.
 			var name = (peer && peer.name) ? peer.name : 'Unknown';
 			var color = (peer && peer.color) ? peer.color : '#000000';
-			this.collabFileAnnotations[clientId] = new CollabFileAnnotation(name, color, url);
+			this.collabFileAnnotations[clientId] = new CollabFileAnnotation(name, color, url, this.projectRelativeLocation(url));
 			this._requestFileAnnotationUpdate();
 		},
 
@@ -466,6 +466,16 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 				}
 				Location = loc + file;
 				return Location;
+			}
+		},
+
+		projectRelativeLocation: function(location) {
+			if (location.indexOf('/file/') === 0) {
+				// Local workspace
+				return location.substr(6);
+			} else {
+				// Shared workspace
+				return location.split('/').slice(7).join('/');
 			}
 		},
 

@@ -24,8 +24,9 @@ define(['orion/uiUtils'], function(mUIUtils) {
 	 * @param {string} name - displayed name
 	 * @param {string} color - user color
 	 * @param {string} location - file location
+	 * @param {string} displayedLocation - read friendly location
 	 */
-	var CollabFileAnnotation = function(name, color, location) {
+	var CollabFileAnnotation = function(name, color, location, displayedLocation) {
 		this.name = name;
 		this.color = color;
 		// Remove trailing "/"
@@ -33,6 +34,7 @@ define(['orion/uiUtils'], function(mUIUtils) {
 			location = location.substr(0, location.length - 1);
 		}
 		this.location = location;
+		this.displayedLocation = displayedLocation || location;
 	};
 
 	CollabFileAnnotation.prototype = {
@@ -84,7 +86,7 @@ define(['orion/uiUtils'], function(mUIUtils) {
 		 * @return {string} - description
 		 */
 		getDescription: function() {
-			return this.name + ' is editing this file.';
+			return '<b>' + this.name + '</b> is editing <a href=#' + this.location + '>' + this.displayedLocation + '</a>';
 		},
 
 		/**
