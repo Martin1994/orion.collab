@@ -226,6 +226,7 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib', 'orion/Deferred'], f
 					if (!annotationElementsByItem[id]) {
 						annotationElementsByItem[id] = [];
 					}
+					annotationElement.annotation = annotation;
 					annotationElementsByItem[id].push(annotationElement);
 					promise.resolve();
 				});
@@ -246,6 +247,43 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib', 'orion/Deferred'], f
 						// }
 						annotationsToAdd.forEach(function (html) {
 						    container.appendChild(html);
+							// Tooltip
+							// TODO: make it general
+							html.addEventListener('click', function(e) {
+								if (tree.tooltip) {
+									//tree.tooltip.remove();
+								}
+								var tooltip = document.createElement('div');
+								tooltip.innerHTML = html.annotation.getDescription();
+								tooltip.style.zIndex = 999;
+								tooltip.style.padding = '10px'
+								tooltip.style.backgroundColor = '#fff';
+								tooltip.style.borderWidth = '1px';
+								tooltip.style.borderStyle = 'solid';
+								tooltip.style.wordBreak = 'break-all';
+								tooltip.style.width = '200px';
+								tooltip.style.minHeight = '20px';
+								tooltip.style.position = 'absolute';
+								tooltip.style.left = e.clientX + 'px';
+								tooltip.style.top = e.clientY + 'px';
+								var cross = document.createElement('div');
+								cross.innerHTML = '×';
+								cross.style.position = 'absolute';
+								cross.style.right = '3px';
+								cross.style.top = '1px';
+								cross.style.cursor = 'pointer';
+								tooltip.appendChild(cross);
+								document.body.appendChild(tooltip);
+								tooltip.remove = function (e2) {
+									window.removeEventListener('click', tooltip.remove);
+									document.body.removeChild(tooltip);
+									tree.tooltip = null;
+								};
+								setTimeout(function() {
+									window.addEventListener('click', tooltip.remove);
+								}, 0);
+								tree.tooltip = tooltip;
+							});
 						});
 					}
 				}
