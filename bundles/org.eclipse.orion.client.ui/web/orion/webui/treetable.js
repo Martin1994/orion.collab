@@ -235,16 +235,18 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib', 'orion/Deferred'], f
 				for (var elementid in annotationElementsByItem) {
 					if (annotationElementsByItem.hasOwnProperty(elementid)) {
 						var annotationsToAdd = annotationElementsByItem[elementid];
-						var html = annotationsToAdd[0];
 						var container = document.getElementById(elementid + 'Annotation');
-						container.appendChild(html);
 						container.classList.add('treeAnnotationOn');
-						if (annotationsToAdd.length > 1) {
-							// TODO: tooltip
-							var overlay = document.createElement('div');
-							overlay.classList.add('overlay');
-							container.appendChild(overlay);
-						}
+						// var html = annotationsToAdd[0];
+						// container.appendChild(html);
+						// if (annotationsToAdd.length > 1) {
+						// 	var overlay = document.createElement('div');
+						// 	overlay.classList.add('overlay');
+						// 	container.appendChild(overlay);
+						// }
+						annotationsToAdd.forEach(function (html) {
+						    container.appendChild(html);
+						});
 					}
 				}
 			});
