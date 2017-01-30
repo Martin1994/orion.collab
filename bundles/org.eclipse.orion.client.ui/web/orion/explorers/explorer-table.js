@@ -419,7 +419,9 @@ define([
 		},
 
 		onModelCreate: function(modelEvent) {
-			return this.changedItem(modelEvent.parent, true);
+			// We don't want file changes disturbe the user's current workflow,
+			// so here disables forceExpand
+			return this.changedItem(modelEvent.parent, false);
 		},
 		onModelCopy: function(modelEvent) {
 			var ex = this,
