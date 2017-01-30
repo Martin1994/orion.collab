@@ -83,13 +83,6 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         }
         switch(msg.type) {
             case "init-document":
-                // Initialize
-                for (var clientId in msg.clients) {
-                    if (msg.clients.hasOwnProperty(clientId)) {
-                        var peerData = msg.clients[clientId];
-                        this.collabClient.addOrUpdatePeer(new CollabPeer(clientId, peerData.username, peerData.color));
-                    }
-                }
                 this.collabClient.startOT(msg.revision, msg.operation, msg.clients);
                 this.collabClient.awaitingClients = false;
                 break;
@@ -103,7 +96,6 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
                     this.sendInit();
                 }
                 this.collabClient.editor.markClean();
-                this.trigger('selection', msg.clientId, msg.selection);
                 break;
             case "selection":
                 this.trigger('selection', msg.clientId, msg.selection);
@@ -240,7 +232,21 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      * @param {Object} msg
      */
     OrionCollabSocketAdapter.prototype._onDocMessage = function(msg) {
-        OrionSocketAdapter.prototype._onDocMessage.call(this, msg);
+        switch (msg.type) {
+            case 'client-joined-doc':
+                // Add new client to OT
+                this.trigger('client_joined', msg.clientId, this.collabClient.getPeer(msg.clientId));
+                break;
+
+            case 'client-left-doc':
+                // Clear this client's line annotation
+                this.trigger('client_left', msg.clientId);
+                break;
+
+            default:
+                OrionSocketAdapter.prototype._onDocMessage.call(this, msg);
+                break;
+        }
     };
 
     /**

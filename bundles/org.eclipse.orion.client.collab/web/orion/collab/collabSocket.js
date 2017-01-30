@@ -16,7 +16,7 @@ define(['orion/EventTarget'], function(EventTarget) {
     'use strict;'
 
 	var hubUrl = "ws://localhost:8082/";
-    var DEBUG = true;
+    var DEBUG = false;
 
     /**
      * Collab socket client
@@ -57,7 +57,8 @@ define(['orion/EventTarget'], function(EventTarget) {
                 data: e.data
             });
             if (DEBUG) {
-                console.log('CollabSocket In:', JSON.parse(e.data));
+                var msgObj = JSON.parse(e.data);
+                console.log('CollabSocket In: ' + msgObj.type, msgObj);
             }
         };
 	}
@@ -74,7 +75,8 @@ define(['orion/EventTarget'], function(EventTarget) {
     CollabSocket.prototype.send = function(message) {
         this.socket.send(message);
         if (DEBUG) {
-            console.log('CollabSocket Out:', JSON.parse(message));
+            var msgObj = JSON.parse(message);
+            console.log('CollabSocket Out: ' + msgObj.type, msgObj);
         }
     };
 
