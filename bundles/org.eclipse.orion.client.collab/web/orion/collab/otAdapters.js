@@ -786,7 +786,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         var annotationModel = this.editor.getAnnotationModel();
         var ann = this.AT.createAnnotation(this.AT.ANNOTATION_COLLAB_LINE_CHANGED, cursor, cursor, name + " is editing");
         var initial = mUIUtils.getNameInitial(name);
-        ann.html = ann.html.substring(0, ann.html.indexOf('></div>')) + " style='background-color:" + color + "'><b>" + initial + "</b></div>";
+        ann.html = ann.html.substring(0, ann.html.indexOf('></div>')) + " style='background-color:" + color + "'>" + initial + "</div>";
         ann.peerId = id;
         var peerId = id;
 

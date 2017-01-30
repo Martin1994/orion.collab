@@ -1554,16 +1554,16 @@ html[dir="rtl"] .fileExplorerProgressDiv { /* ACGC */
 
 .navAnnotation .collabAnnotation {
 	display: inline-block;
-	width: 20px;
-	height: 20px;
+	width: 16px;
+	height: 16px;
 	border-radius: 50%;
-	font-size: 14px;
+	font-size: 11px;
 	font-weight: bold;
 	font-family: monospace;
-	line-height: 18px;
+	line-height: 16px;
 	text-align: center;
 	color: #fff;
-	margin: 0 2px;
+	margin: 2px;
 }
 
 .treeAnnotation .overlay {
