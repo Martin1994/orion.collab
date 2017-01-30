@@ -259,6 +259,10 @@ module.exports.router = function(options) {
 
 		return sharedProjects.getProjectPathFromHubID(hubid)
 		.then(function(filepath) {
+			if (!filepath) {
+				writeError(404, res, 'Session not found: ' + hubid);
+				return;
+			}
 			//remove project name from path
 			filepath = filepath.substring(0, filepath.lastIndexOf(path.sep));
 			filepath = path.join(filepath, relativeFilePath);
@@ -273,6 +277,10 @@ module.exports.router = function(options) {
 
 		return sharedProjects.getProjectPathFromHubID(hubid)
 		.then(function(filepath) {
+			if (!filepath) {
+				writeError(404, res, 'Session not found: ' + hubid);
+				return;
+			}
 			//remove project name from path
 			filepath = filepath.substring(0, filepath.lastIndexOf(path.sep));
 			filepath = path.join(filepath, relativeFilePath);
