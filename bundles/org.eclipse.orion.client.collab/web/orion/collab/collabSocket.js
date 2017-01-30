@@ -1,12 +1,84 @@
+/*******************************************************************************
+ * @license
+ * Copyright (c) 2017 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License v1.0
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html).
+ *
+ * Contributors: IBM Corporation - initial API and implementation
+ ******************************************************************************/
+
+/*eslint-env browser, amd */
 /* Initializes websocket connection */
 
-define([], function() {
-	var hubUrl = "ws://localhost:80/hub/";
-	function CollabSocket(sessionid) {
-        this.socket = new WebSocket(hubUrl);
+define(['orion/EventTarget'], function(EventTarget) {
+    'use strict;'
+
+	var hubUrl = "ws://localhost:8082/";
+    var DEBUG = true;
+
+    /**
+     * Collab socket client
+     * 
+     * @class
+     * @constructor
+     * 
+     * @param {string} sessionId
+     */
+	function CollabSocket(sessionId) {
+        var self = this;
+
+        this.socket = new WebSocket(hubUrl + sessionId);
+
+        this.socket.onopen = function() {
+            self.dispatchEvent({
+                type: 'ready'
+            });
+        };
+
+        this.socket.onclose = function() {
+            self.dispatchEvent({
+                type: 'close'
+            });
+        };
+
+        this.socket.onerror = function(e) {
+            self.dispatchEvent({
+                type: 'error',
+                error: e
+            });
+            console.error(e);
+        };
+
+        this.socket.onmessage = function(e) {
+            self.dispatchEvent({
+                type: 'message',
+                data: e.data
+            });
+            if (DEBUG) {
+                console.log('CollabSocket In:', JSON.parse(e.data));
+            }
+        };
 	}
 
 	CollabSocket.prototype.constructor = CollabSocket;
 
-	return CollabSocket;
+    EventTarget.attach(CollabSocket.prototype);
+
+    /**
+     * Send message
+     * 
+     * @param {string} message
+     */
+    CollabSocket.prototype.send = function(message) {
+        this.socket.send(message);
+        if (DEBUG) {
+            console.log('CollabSocket Out:', JSON.parse(message));
+        }
+    };
+
+	return {
+        CollabSocket: CollabSocket
+    };
 });
