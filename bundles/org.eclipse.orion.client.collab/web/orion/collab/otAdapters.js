@@ -114,7 +114,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     OrionSocketAdapter.prototype._onSessionMessage = function(msg) {
         var type = msg.type;
         switch (type) {
-            case 'file_operation':
+            case 'file-operation':
                 this.collabClient.handleFileOperation(msg);
                 break;
         }
