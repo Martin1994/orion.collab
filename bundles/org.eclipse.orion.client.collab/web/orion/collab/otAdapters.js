@@ -27,10 +27,10 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      * @class
      * @name orion.collab.OrionSocketAdapter
      *
-     * @param {orion.collabClient.CollabClient} client -
+     * @param {orion.collabClient.CollabClient} collabClient
      */
-    var OrionSocketAdapter = function(client) {
-        this.client = client;
+    var OrionSocketAdapter = function(collabClient) {
+        this.collabClient = collabClient;
         this.callbacks = [];
     };
 
@@ -43,7 +43,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         var msg = {
             'type': 'authenticate',
             'token': localStorage.getItem('orionSocket.authToken'),
-            'clientId': this.client.getClientId()
+            'clientId': this.collabClient.getClientId()
         };
         this.send(JSON.stringify(msg));
     };
@@ -53,7 +53,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      * 
      * Implement this.
      *
-     * @param {string} text -
+     * @param {string} text
      */
     OrionSocketAdapter.prototype.send = function(text) {
         throw new Error('Not implemented.');
@@ -62,7 +62,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     /**
      * Message handler
      *
-     * @param {string} msg -
+     * @param {Object} msg
      */
     OrionSocketAdapter.prototype._onMessage = function(msg) {
         if (msg.doc) {
@@ -75,44 +75,23 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     /**
      * Document Message handler
      *
-     * @param {string} msg -
+     * @param {Object} msg
      */
     OrionSocketAdapter.prototype._onDocMessage = function(msg) {
-        if (msg.doc !== this.client.currentDoc() || !this.client.textView) {
+        if (msg.doc !== this.collabClient.currentDoc() || !this.collabClient.textView) {
             return;
         }
-        switch(type) {
+        switch(msg.type) {
             case "init-document":
                 // Initialize
                 for (var clientId in msg.clients) {
                     if (msg.clients.hasOwnProperty(clientId)) {
                         var peerData = msg.clients[clientId];
-                        this.client.addOrUpdatePeer(new CollabPeer(clientId, peerData.username, peerData.color));
+                        this.collabClient.addOrUpdatePeer(new CollabPeer(clientId, peerData.username, peerData.color));
                     }
                 }
-                this.client.startOT(msg.revision, msg.operation, msg.clients);
-                this.client.awaitingClients = false;
-                break;
-            case "client_left":
-                this.trigger('client_left', msg.clientId);
-                this.client.removePeer(msg.clientId);
-                break;
-            case "client_joined":
-                this.client.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.client.username, msg.client.color));
-                this.trigger('client_joined', msg.clientId, this.client.getPeer(clientId));
-                break;
-            case "all_clients":
-                for (var clientId in msg.clients) {
-                    if (msg.clients.hasOwnProperty(clientId)) {
-                        var peerData = msg.clients[clientId];
-                        this.client.addOrUpdatePeer(new CollabPeer(clientId, peerData.name, peerData.color));
-                    }
-                }
-                this.trigger('clients', msg.clients);
-                this.client.awaitingClients = false;
-                break;
-            case "client_update":
-                this.trigger('client_update', msg.clientId, msg.client);
+                this.collabClient.startOT(msg.revision, msg.operation, msg.clients);
+                this.collabClient.awaitingClients = false;
                 break;
             case "ack":
                 this.trigger('ack');
@@ -123,7 +102,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
                 } catch(ex) {
                     this.sendInit();
                 }
-                this.client.editor.markClean();
+                this.collabClient.editor.markClean();
                 this.trigger('selection', msg.clientId, msg.selection);
                 break;
             case "selection":
@@ -138,13 +117,13 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     /**
      * Session Message handler
      *
-     * @param {string} msg -
+     * @param {Object} msg
      */
     OrionSocketAdapter.prototype._onSessionMessage = function(msg) {
         var type = msg.type;
         switch (type) {
             case 'file_operation':
-                this.client.handleFileOperation(msg);
+                this.collabClient.handleFileOperation(msg);
                 break;
         }
     };
@@ -155,8 +134,8 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     OrionSocketAdapter.prototype.sendInit = function() {
         var msg = {
             'type': 'join-document',
-            'doc': this.client.currentDoc(),
-            'clientId': this.client.getClientId()
+            'doc': this.collabClient.currentDoc(),
+            'clientId': this.collabClient.getClientId()
         };
 
         this.send(JSON.stringify(msg));
@@ -164,35 +143,35 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
 
     /**
      * Send OT operation
-     * @param {number} revision -
-     * @param {OT.Operation} operation -
-     * @param {OT.Selection} selection -
+     * @param {number} revision
+     * @param {OT.Operation} operation
+     * @param {OT.Selection} selection
      */
     OrionSocketAdapter.prototype.sendOperation = function(revision, operation, selection) {
-        var myDoc = this.client.currentDoc();
+        var myDoc = this.collabClient.currentDoc();
         var msg = {
             'type': 'operation',
             'revision': revision,
             'operation': operation,
             'selection': selection,
             'doc': myDoc,
-            'clientId': this.client.getClientId()
+            'clientId': this.collabClient.getClientId()
         };
         this.send(JSON.stringify(msg));
-        this.client.editor.markClean();
+        this.collabClient.editor.markClean();
     };
 
     /**
      * Send OT selection
-     * @param {OT.Selection} selection -
+     * @param {OT.Selection} selection
      */
     OrionSocketAdapter.prototype.sendSelection = function (selection) {
-        var myDoc = this.client.currentDoc();
+        var myDoc = this.collabClient.currentDoc();
         var msg = {
             'type': 'selection',
             'selection': selection,
             'doc': myDoc,
-            'clientId': this.client.getClientId()
+            'clientId': this.collabClient.getClientId()
         };
         this.send(JSON.stringify(msg));
     };
@@ -211,10 +190,10 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     /**
      * Trigger an event.
      *
-     * @param {Object} event -
+     * @param {Object} event
      */
     OrionSocketAdapter.prototype.trigger = function (event) {
-        if (!this.client.textView) return;
+        if (!this.collabClient.textView) return;
         var args = Array.prototype.slice.call(arguments, 1);
         var action = this.callbacks && this.callbacks[event];
         if (action) { action.apply(this, args); }
@@ -227,18 +206,19 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      * @extends orion.collab.OrionSocketAdapter
      * @name orion.collab.OrionCollabSocketAdapter
      *
-     * @param {orion.collabClient.CollabClient} client -
-     * @param {orion.collabClient.CollabSocket} socket -
+     * @param {orion.collabClient.CollabClient} client
+     * @param {orion.collabClient.CollabSocket} socket
      */
     var OrionCollabSocketAdapter = function(client, socket) {
         OrionSocketAdapter.call(this, client);
 
         var self = this;
         this.socket = socket;
+        this.authenticated = false;
 
         // Register incoming message handler
-        this.socket.on('message', function(msg) {
-            self._onMessage(msg);
+        this.socket.addEventListener('message', function(e) {
+            self._onMessage(JSON.parse(e.data));
         });
     };
 
@@ -248,7 +228,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     /**
      * Send text
      *
-     * @param {string} text -
+     * @param {string} text
      */
     OrionCollabSocketAdapter.prototype.send = function(text) {
         this.socket.send(text);
@@ -257,27 +237,74 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     /**
      * Session Message handler
      *
-     * @param {string} msg -
+     * @param {Object} msg
      */
     OrionCollabSocketAdapter.prototype._onDocMessage = function(msg) {
-        var type = msg.type;
-        if (type.substr(0, 11) === 'collab.') {
-            type = type.substr(11);
-        }
         OrionSocketAdapter.prototype._onDocMessage.call(this, msg);
     };
 
     /**
      * Session Message handler
      *
-     * @param {string} msg -
+     * @param {Object} msg
      */
     OrionCollabSocketAdapter.prototype._onSessionMessage = function(msg) {
-        var type = msg.type;
-        if (type.substr(0, 11) === 'collab.') {
-            type = type.substr(11);
+        switch(msg.type) {
+            case 'authenticated':
+                // Do some initialization
+                this.authenticated = true;
+                this.collabClient.onLocationChanged();
+                this.updateClient({
+                    name: this.collabClient.getClientDisplayedName()
+                });
+                this.send(JSON.stringify({
+                    type: 'get-clients'
+                }));
+                if (this.collabClient.textView) {
+					this.sendInit();
+                }
+                break;
+
+            case 'client-joined':
+                this.collabClient.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
+                this.collabClient.addOrUpdateCollabFileAnnotation(msg.clientId, '/file/' + msg.location);
+                break;
+
+            case 'client-left':
+                this.collabClient.removePeer(msg.clientId);
+                break;
+
+            case 'client-updated':
+                this.collabClient.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
+                this.collabClient.addOrUpdateCollabFileAnnotation(msg.clientId, '/file/' + msg.location);
+                break;
+
+            default:
+                OrionSocketAdapter.prototype._onSessionMessage.call(this, msg);
+                break;
         }
-        OrionSocketAdapter.prototype._onSessionMessage.call(this, msg);
+    };
+
+    /**
+     * Send current location to the server
+     * 
+     * @param {string} location
+     */
+    OrionCollabSocketAdapter.prototype.sendLocation = function(location) {
+        this.send(JSON.stringify({
+            type: 'update-client',
+            location: location
+        }));
+    };
+
+    /**
+     * Update this client's info to the server
+     * 
+     * @param {Object} clientData - fields to update
+     */
+    OrionCollabSocketAdapter.prototype.updateClient = function(clientData) {
+        clientData.type = 'update-client';
+        this.send(JSON.stringify(clientData));
     };
 
     /**
@@ -287,8 +314,8 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      * @extends orion.collab.OrionSocketAdapter
      * @name orion.collab.OrionTogetherJSAdapter
      *
-     * @param {orion.collabClient.CollabClient} client -
-     * @param {TogetherJS.Channel} socket -
+     * @param {orion.collabClient.CollabClient} client
+     * @param {TogetherJS.Channel} socket
      */
     var OrionTogetherJSAdapter = function(client, socket) {
         OrionSocketAdapter.call(this, client);
@@ -308,7 +335,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     /**
      * Send text
      *
-     * @param {string} text -
+     * @param {string} text
      */
     OrionTogetherJSAdapter.prototype.send = function(text) {
         this.socket.send(text);
@@ -317,30 +344,55 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     /**
      * Session Message handler
      *
-     * @param {string} msg -
+     * @param {string} msg
      */
     OrionTogetherJSAdapter.prototype._onDocMessage = function(msg) {
         var type = msg.type;
         if (type.substr(0, 11) === 'togetherjs.') {
-            type = type.substr(11);
+            msg.type = type = type.substr(11);
         }
-        OrionSocketAdapter.prototype._onDocMessage.call(this, msg);
+        switch (type) {
+            case "client_left":
+                this.trigger('client_left', msg.clientId);
+                this.collabClient.removePeer(msg.clientId);
+                break;
+            case "client_joined":
+                this.collabClient.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.client.username, msg.client.color));
+                this.trigger('client_joined', msg.clientId, this.collabClient.getPeer(clientId));
+                break;
+            case "all_clients":
+                for (var clientId in msg.clients) {
+                    if (msg.clients.hasOwnProperty(clientId)) {
+                        var peerData = msg.clients[clientId];
+                        this.collabClient.addOrUpdatePeer(new CollabPeer(clientId, peerData.name, peerData.color));
+                    }
+                }
+                this.trigger('clients', msg.clients);
+                this.collabClient.awaitingClients = false;
+                break;
+            case "client_update":
+                this.trigger('client_update', msg.clientId, msg.client);
+                break;
+            default:
+                OrionSocketAdapter.prototype._onDocMessage.call(this, msg);
+                break;
+        }
     };
 
     /**
      * Session Message handler
      *
-     * @param {string} msg -
+     * @param {string} msg
      */
     OrionTogetherJSAdapter.prototype._onSessionMessage = function(msg) {
         var type = msg.type;
         if (type.substr(0, 11) === 'togetherjs.') {
-            type = type.substr(11);
+            msg.type = type = type.substr(11);
         }
         switch (type) {
             case 'authenticated':
                 this.sendInit();
-                this.client.getDocPeers();
+                this.collabClient.getDocPeers();
                 // Re-send hello because TogetherJS might sent hello before this client
                 // is authenticated.
 			    var session = TogetherJS.require('session');
@@ -351,26 +403,25 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
                 // Listen to the hello message in order to track everyone's current doc.
                 // hello message initiates a new sequence of annotations, so it clears
                 // all the existing annotations.
-                this.client.resetCollabFileAnnotation();
-                this.client.updateSelfFileAnnotation();
+                this.collabClient.resetCollabFileAnnotation();
+                this.collabClient.updateSelfFileAnnotation();
             case 'hello-back':
                 // Both hello and hello-back contains client info (name, color, etc.),
                 // so we update the record of this peer
-                this.client.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
+                this.collabClient.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
                 // Both hello and hello-back message contains one user's current doc, so
                 // we add a new annotation.
                 // Use hash to get the location of the current file but remove the leading #
-                var location = this.client.maybeTransformLocation(msg.urlHash.substr(1));
-                this.client.addOrUpdateCollabFileAnnotation(msg.clientId, location);
+                this.collabClient.addOrUpdateCollabFileAnnotation(msg.clientId, msg.urlHash.substr(1));
                 break;
 
             case 'update_client':
-                this.client.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
+                this.collabClient.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.name, msg.color));
                 this.trigger('client_update', msg.clientId, msg);
                 break;
 
             case 'peer-update':
-                this.client.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.peer.name, msg.peer.color));
+                this.collabClient.addOrUpdatePeer(new CollabPeer(msg.clientId, msg.peer.name, msg.peer.color));
                 this.trigger('client_update', msg.clientId, msg);
                 break;
 
@@ -390,8 +441,8 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      * @name orion.collab.OrionTogetherJSDelayAdapter
      * @extends orion.collab.OrionSocketAdapter
      *
-     * @param {orion.collabClient.CollabClient} client -
-     * @param {TogetherJS.Channel} socket -
+     * @param {orion.collabClient.CollabClient} client
+     * @param {TogetherJS.Channel} socket
      * @param {number} delay - ms to delay. Note that both sending and receiving
      *     actions are delayed so the actual lag is doubled.
      */
@@ -406,7 +457,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     /**
      * Send text with delay
      *
-     * @param {string} text -
+     * @param {string} text
      */
     OrionTogetherJSDelayAdapter.prototype.send = function(text) {
         var self = this;
@@ -420,7 +471,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     /**
      * Message handler with delay
      *
-     * @param {string} msg -
+     * @param {string} msg
      */
     OrionTogetherJSDelayAdapter.prototype._onMessage = function(msg) {
         var self = this;

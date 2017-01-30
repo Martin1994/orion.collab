@@ -21,7 +21,7 @@ define(['orion/uiUtils'], function(mUIUtils) {
 	 * @name {orion.collab.CollabFileAnnotation}
 	 * @implements {orion.treetable.TableTree.IAnnotation}
 	 * 
-	 * @param {string} name - username
+	 * @param {string} name - displayed name
 	 * @param {string} color - user color
 	 * @param {string} location - file location
 	 */

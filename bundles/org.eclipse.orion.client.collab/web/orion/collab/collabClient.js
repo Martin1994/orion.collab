@@ -10,13 +10,15 @@
  ******************************************************************************/
 
 /*eslint-env browser, amd */
-define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
-	'orion/collab/collabFileAnnotation', 'orion/collab/otAdapters', 'orion/collab/collabPeer'],
-	function(EventTarget, mAnnotations, ot, mTreeTable, mCollabFileAnnotation, mOtAdapters, mCollabPeer) {
+define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
+	'orion/collab/collabFileAnnotation', 'orion/collab/otAdapters', 'orion/collab/collabPeer',
+	'orion/collab/collabSocket'],
+	function(mAnnotations, ot, mTreeTable, mCollabFileAnnotation, mOtAdapters, mCollabPeer, mCollabSocket) {
 
     'use strict';
 
 	var CollabFileAnnotation = mCollabFileAnnotation.CollabFileAnnotation;
+	var OrionCollabSocketAdapter = mOtAdapters.OrionCollabSocketAdapter;
 	var OrionTogetherJSAdapter = mOtAdapters.OrionTogetherJSAdapter;
 	var OrionTogetherJSDelayAdapter = mOtAdapters.OrionTogetherJSDelayAdapter;
 	var OrionEditorAdapter = mOtAdapters.OrionEditorAdapter;
@@ -34,15 +36,17 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 	 * @class 
 	 * @name orion.collabClient.CollabClient
 	 */
-	function CollabClient(editor, inputManager, fileClient) {
+	function CollabClient(editor, inputManager, fileClient, serviceRegistry) {
 		this.editor = editor;
 		this.inputManager = inputManager;
 		this.fileClient = fileClient;
 		this.textView = null;
 		var self = this;
 		this.collabMode = false;
-		this.clientId = "";
+		this.clientId = '';
+		this.clientDisplayedName = '';
 		this.fileClient.addEventListener('Changed', self.sendFileOperation.bind(self));
+		this.serviceRegistry = serviceRegistry;
 		this.editor.addEventListener('ModelLoaded', function(event) {self.viewInstalled.call(self, event);});
 		this.editor.addEventListener('TextViewUninstalled', function(event) {self.viewUninstalled.call(self, event);});
 		this.projectSessionID = '';
@@ -58,8 +62,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		this.ot = null;
 		this.otOrionAdapter = null;
 		this.otSocketAdapter = null;
-		window.addEventListener('hashchange', function() { self.destroyOT(); });
-		window.addEventListener('hashchange', function() { self.updateSelfFileAnnotation(); });
+		window.addEventListener('hashchange', function() { self.onLocationChanged(); });
 		this.awaitingClients = false;
 		this.collabFileAnnotations = {};
 		// Timeout id to indicate whether a delayed update has already been assigned
@@ -75,18 +78,52 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 
 		/**
 		 * getter of clientId
-		 * @return {string} -
+		 * @return {string}
 		 */
 		getClientId: function() {
 			return this.clientId;
 		},
 
 		/**
-		 * setter of clientId
-		 * @param {string} clientId -
+		 * getter of clientDisplayedName
+		 * @return {string}
 		 */
-		setClientId: function(clientId) {
-			this.clientId = clientId;
+		getClientDisplayedName: function() {
+			return this.clientDisplayedName;
+		},
+
+		/**
+		 * Initialize client name and id
+		 * @param {function} callback
+		 */
+		initClientInfo: function(callback) {
+			var self = this;
+			var userService = this.serviceRegistry.getService("orion.core.user"); 
+			var authServices = this.serviceRegistry.getServiceReferences("orion.core.auth");
+			var authService = this.serviceRegistry.getService(authServices[0]);
+			authService.getUser().then(function(jsonData) {
+				userService.getUserInfo(jsonData.Location).then(function(accountData) {
+					var username = accountData.UserName;
+					self.clientDisplayedName = accountData.FullName || username;
+					var MASK = 0xFFFFFF + 1;
+					var MAGIC = 161803398 / 2 % MASK;
+					self.clientId = username + '.' + (Date.now() % MASK * MAGIC % MASK).toString(16);
+					callback();
+				}).catch(function(err) {
+					console.error(err);
+				});
+			});
+		},
+
+		/**
+		 * Hash changed handler
+		 */
+		onLocationChanged: function() {
+			this.updateSelfFileAnnotation();
+			this.destroyOT();
+			if (this.otSocketAdapter && this.otSocketAdapter.authenticated) {
+				this.otSocketAdapter.sendLocation(this.currentDoc());
+			}
 		},
 
 		/**
@@ -104,6 +141,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		 * @param {string} url -
 		 */
 		addOrUpdateCollabFileAnnotation: function(clientId, url) {
+			url = this.maybeTransformLocation(url);
 			var peer = this.getPeer(clientId);
 			// Peer might be loading. Once it is loaded, this annotation will be automatically updated,
 			// so we can safely leave it blank.
@@ -217,6 +255,7 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 
 		/**
 		 * Remove a peer by its ID if it exists
+		 * This method also removes all the removing client's annotation
 		 */
 		removePeer: function(clientId) {
 			if (this.peers.hasOwnProperty(clientId)) {
@@ -291,11 +330,16 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 		},
 
 		socketConnected: function() {
-			this.setClientId(this.socket.getClientId());
-			this.updateSelfFileAnnotation();
+			var self = this;
 			this.otSocketAdapter = new OrionCollabSocketAdapter(this, this.socket);
 			//this.otSocketAdapter = new OrionTogetherJSDelayAdapter(this, session.channel, 2500);
-			this.otSocketAdapter.authenticate();
+			if (!this.clientId) {
+				this.initClientInfo(function() {
+					self.otSocketAdapter.authenticate();
+				});
+			} else {
+				this.otSocketAdapter.authenticate();
+			}
 			this.inputManager.collabRunning = true;
 		},
 
@@ -312,28 +356,20 @@ define(['orion/EventTarget', 'orion/editor/annotations', 'orion/collab/ot', 'ori
 			// Initialize collab socket
 			if (projectSessionID) {
 				this.socket = new mCollabSocket.CollabSocket(projectSessionID);
-				socket.once('ready', function() {
+				this.socket.addEventListener('ready', function onReady() {
+					self.socket.removeEventListener('ready', onReady);
 					self.socketConnected();
 				});
-				socket.once('close', function() {
+				this.socket.addEventListener('close', function onClose() {
+					self.socket.removeEventListener('close', onClose);
 					self.socketDisconnected();
 				});
 				this.collabMode = true;
 			} else {
-				// TODO: Cleanup
 				this.collabMode = false;
 			}
 			this.clearPeers();
 			this.resetCollabFileAnnotation();
-		},
-
-		getDocPeers: function() {
-		    var msg = {
-		      'type': 'get-clients',
-		      'doc': this.currentDoc(),
-		      'clientId': this.getClientId()
-		    };
-		    this.otSocketAdapter.send(msg);
 		},
 
 		sendFileOperation: function(evt) {
