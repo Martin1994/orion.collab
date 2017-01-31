@@ -246,6 +246,7 @@ module.exports.router = function(options) {
 			var timeStamp = stats.mtime.getTime(),
 			result = sharedUtil.treeJSON(name, fileRoot, timeStamp, isDir, 0, false);
 			result.ChildrenLocation = {pathname: result.Location, query: {depth:1}};
+			// TODO: ImportLocation and ExportLocation
 			return Promise.resolve(result);
 		}
 	}
