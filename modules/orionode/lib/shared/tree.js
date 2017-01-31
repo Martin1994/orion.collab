@@ -25,6 +25,7 @@ module.exports.router = function(options) {
 	var workspaceRoot = options.options.workspaceDir;
 	var sharedRoot = options.root;
 	if (!workspaceRoot) { throw new Error('options.options.workspaceDir required'); }
+	var xfer = require('../xfer')(options.options);
 
 	return express.Router()
 	.get('/', getSharedWorkspace)
@@ -34,7 +35,9 @@ module.exports.router = function(options) {
 	.delete('/file*', ensureAccess, deleteFile)
 	.get('/load/:hubId/*', loadFile)
 	.put('/save/:hubId/*', saveFile)
-	.get('/session/:hubId', checkSession);
+	.get('/session/:hubId', checkSession)
+	.get('/export*', getXfer)
+	.post('/import*', postImportXfer);
 
 	/**
 	 * Get shared projects for the user.
@@ -81,7 +84,7 @@ module.exports.router = function(options) {
 	 */
 	function getTree(req, res) {
 		var tree;
-		var filePath = path.join(workspaceRoot, req.params["0"]);
+		var filePath = fileUtil.safeFilePath(workspaceRoot, req.params["0"]);
 		var fileRoot = req.params["0"];
 		fileUtil.withStatsAndETag(filePath, function(err, stats, etag) {
 			if (err && err.code === 'ENOENT') {
@@ -134,7 +137,7 @@ module.exports.router = function(options) {
 	 * For file save.
 	 */
 	function putFile(req, res) {
-		var filepath = path.join(workspaceRoot, req.params["0"]);
+		var filepath = fileUtil.safeFilePath(workspaceRoot, req.params["0"]);
 		var fileRoot = req.params["0"];
 		if (req.params['parts'] === 'meta') {
 			// TODO implement put of file attributes
@@ -200,7 +203,7 @@ module.exports.router = function(options) {
 	 */
 	function deleteFile(req, res) {
 		var rest = req.params["0"].substring(1);
-		var filepath = path.join(workspaceRoot, rest);
+		var filepath = fileUtil.safeFilePath(workspaceRoot, rest);
 		fileUtil.withStatsAndETag(filepath, function(error, stats, etag) {
 			var callback = function(error) {
 				if (error) {
@@ -247,7 +250,8 @@ module.exports.router = function(options) {
 			var timeStamp = stats.mtime.getTime(),
 			result = sharedUtil.treeJSON(name, fileRoot, timeStamp, isDir, 0, false);
 			result.ChildrenLocation = {pathname: result.Location, query: {depth:1}};
-			// TODO: ImportLocation and ExportLocation
+			result.ImportLocation = result.Location.replace(/\/sharedWorkspace\/tree\/file/, "/sharedWorkspace/tree/xfer/import").replace(/\/$/, "");
+			result.ExportLocation = result.Location.replace(/\/sharedWorkspace\/tree\/file/, "/sharedWorkspace/tree/xfer/export").replace(/\/$/, "") + ".zip";
 			return Promise.resolve(result);
 		}
 	}
@@ -319,5 +323,28 @@ module.exports.router = function(options) {
 				return;
 			}
 		});
+	}
+
+	/**
+	 * Export
+	 */
+	function getXfer(req, res) {
+		var filePath = req.params["0"];
+		
+		if (path.extname(filePath) !== ".zip") {
+			return writeError(400, res, "Export is not a zip");
+		}
+		
+		filePath = fileUtil.safeFilePath(workspaceDir, filePath.replace(/.zip$/, ""));
+		xfer.getXferFrom(req, res, filePath);
+	}
+
+	/**
+	 * Import
+	 */
+	function postImportXfer(req, res) {
+		var filePath = req.params["0"];
+		filePath = fileUtil.safeFilePath(workspaceDir, filePath);
+		xfer.postImportXferTo(req, res, filePath);
 	}
 };
