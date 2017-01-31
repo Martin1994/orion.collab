@@ -32,6 +32,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     var OrionSocketAdapter = function(collabClient) {
         this.collabClient = collabClient;
         this.callbacks = [];
+        this.ignoreNextOperation = false;
     };
 
     OrionSocketAdapter.prototype.constructor = OrionSocketAdapter;
@@ -90,10 +91,13 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
                 this.trigger('ack');
                 break;
             case "operation":
+                this.ignoreNextOperation = true;
                 try {
                     this.trigger('operation', msg.operation);
-                } catch(ex) {
+                } catch (ex) {
                     this.sendInit();
+                } finally {
+                    this.ignoreNextOperation = false;
                 }
                 this.collabClient.editor.markClean();
                 break;
@@ -140,6 +144,9 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
      * @param {OT.Selection} selection
      */
     OrionSocketAdapter.prototype.sendOperation = function(revision, operation, selection) {
+        if (this.ignoreNextOperation) {
+            return;
+        }
         var myDoc = this.collabClient.currentDoc();
         var msg = {
             'type': 'operation',
