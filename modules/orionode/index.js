@@ -11,7 +11,8 @@
 /*eslint-env node */
 var express = require('express'),
 	path = require('path'),
-	fs = require('fs');
+	fs = require('fs'),
+	jwt = require('jsonwebtoken');
 
 var LIBS = path.normalize(path.join(__dirname, 'lib/')),
 	MINIFIED_ORION_CLIENT = "lib/orion.client",
@@ -47,17 +48,32 @@ function startServer(options) {
 
 		/**
 		 * This method ensures that the websocket trying to retrieve and save content is authenticated.
-		 * HubID (for identifying the project), user token for knowing who the user is.
+		 * We allow two different authentication methods: JWT for the collab server and user token for users.
 		 */
 		function checkCollabAuthenticated(req, res, next) {
 			if (req.user) {
 				req.user.workspaceDir = options.workspaceDir + (req.user.workspace ? "/" + req.user.workspace : "");
 				next();
-			} else if (typeof req.query['hubID'] !== 'undefined'){
+			} else if (req.headers['authorization'] && checkCollabServerToken(req.headers['authorization'])){
 				next();
 			} else {
 				res.writeHead(401, "Not authenticated");
 				res.end();
+			}
+		}
+
+		/**
+		 * Check the JWT token for collab server
+		 */
+		function checkCollabServerToken(authorization) {
+			if (authorization.substr(0, 7) !== "Bearer ") {
+				return false;
+			}
+			try {
+				var decoded = jwt.verify(authorization.substr(7), options.configParams["orion.jwt.secret"]);
+				return true;
+			} catch (ex) {
+				return false;
 			}
 		}
 

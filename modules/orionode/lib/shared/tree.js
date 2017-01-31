@@ -32,8 +32,9 @@ module.exports.router = function(options) {
 	.put('/file*', ensureAccess, putFile)
 	.post('/file*', ensureAccess, postFile)
 	.delete('/file*', ensureAccess, deleteFile)
-	.get('/load*', loadFile)
-	.put('/save*', saveFile);
+	.get('/load/:hubId/*', loadFile)
+	.put('/save/:hubId/*', saveFile)
+	.get('/session/:hubId', checkSession);
 
 	/**
 	 * Get shared projects for the user.
@@ -255,8 +256,13 @@ module.exports.router = function(options) {
 	* Get request from websocket server to load a file. Requires project HUBID and relative file path.
 	**/
 	function loadFile(req, res) {
-		var relativeFilePath = req.params["0"];
-		var hubid = req.query['hubID'];
+		if (req.user) {
+			// User access is not allowed. This method is only for the collab server
+			writeError(403, res, 'Forbidden');
+			return;
+		}
+		var relativeFilePath = req.params['0'];
+		var hubid = req.params['hubId'];
 
 		return sharedProjects.getProjectPathFromHubID(hubid)
 		.then(function(filepath) {
@@ -264,17 +270,22 @@ module.exports.router = function(options) {
 				writeError(404, res, 'Session not found: ' + hubid);
 				return;
 			}
-			//remove project name from path
+			// remove project name from path
 			filepath = filepath.substring(0, filepath.lastIndexOf(path.sep));
 			filepath = path.join(filepath, relativeFilePath);
-			req.params["0"] = filepath;
+			req.params['0'] = filepath;
 			getTree(req, res);
 		});
 	}
 
 	function saveFile(req, res) {
-		var relativeFilePath = req.params["0"];
-		var hubid = req.query['hubID'];
+		if (req.user) {
+			// User access is not allowed. This method is only for the collab server
+			writeError(403, res, 'Forbidden');
+			return;
+		}
+		var relativeFilePath = req.params['0'];
+		var hubid = req.params['hubId'];
 
 		return sharedProjects.getProjectPathFromHubID(hubid)
 		.then(function(filepath) {
@@ -285,8 +296,28 @@ module.exports.router = function(options) {
 			//remove project name from path
 			filepath = filepath.substring(0, filepath.lastIndexOf(path.sep));
 			filepath = path.join(filepath, relativeFilePath);
-			req.params["0"] = filepath;
+			req.params['0'] = filepath;
 			putFile(req, res);
+		});
+	}
+
+	function checkSession(req, res) {
+		if (req.user) {
+			// User access is not allowed. This method is only for the collab server
+			writeError(403, res, 'Forbidden');
+			return;
+		}
+		var hubid = req.params['hubId'];
+		return sharedProjects.getProjectPathFromHubID(hubid)
+		.then(function(filepath) {
+			if (!filepath) {
+				writeError(404, res, 'Session not found: ' + hubid);
+				return;
+			} else {
+				res.write('{}');
+				res.end();
+				return;
+			}
 		});
 	}
 };
