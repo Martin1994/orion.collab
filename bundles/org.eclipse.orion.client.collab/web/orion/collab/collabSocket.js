@@ -61,11 +61,11 @@ define(['orion/EventTarget'], function(EventTarget) {
                 console.log('CollabSocket In: ' + msgObj.type, msgObj);
             }
         };
+
+        EventTarget.attach(this);
 	}
 
 	CollabSocket.prototype.constructor = CollabSocket;
-
-    EventTarget.attach(CollabSocket.prototype);
 
     /**
      * Send message
@@ -78,6 +78,13 @@ define(['orion/EventTarget'], function(EventTarget) {
             var msgObj = JSON.parse(message);
             console.log('CollabSocket Out: ' + msgObj.type, msgObj);
         }
+    };
+
+    /**
+     * Close this socket
+     */
+    CollabSocket.prototype.close = function() {
+        this.socket.close();
     };
 
 	return {

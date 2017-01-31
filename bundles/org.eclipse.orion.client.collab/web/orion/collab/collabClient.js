@@ -353,6 +353,17 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 
 		projectChanged: function(projectSessionID) {
 			var self = this;
+			if (this.socket) {
+				// Close the current session
+				this.socket.close();
+				setTimeout(function() {
+					// Polling until 'close' event is triggered
+					// 'close' event won't wait for any IO operations thus
+					// this.socket should be null in the next event loop 
+					self.projectChanged(projectSessionID);
+				}, 0);
+				return;
+			}
 			// Initialize collab socket
 			if (projectSessionID) {
 				this.socket = new mCollabSocket.CollabSocket(projectSessionID);
