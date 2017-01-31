@@ -411,7 +411,7 @@ define([
 				changedLocations[itemParent.Location] = itemParent;
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], true);
+				return ex.changedItem(changedLocations[loc], false);
 			}));
 		},
 		onModelMove: function(modelEvent) {
@@ -448,7 +448,7 @@ define([
 				}
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], true);
+				return ex.changedItem(changedLocations[loc], false);
 			}));
 		},
 		onModelDelete: function(modelEvent) {
@@ -480,7 +480,7 @@ define([
 				}
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], true);
+				return ex.changedItem(changedLocations[loc], false);
 			}));
 		},
 
@@ -957,7 +957,15 @@ define([
 						},
 						loadend: function(event) {
 							destroy();
-							this.changedItem(targetItem, true);
+							this.fileClient.dispatchEvent({
+								type: "Changed",
+								created: [{
+									parent: targetItem.Location,
+									eventData: {
+										select: false
+									}
+								}]
+							});
 						}.bind(this),
 						error: function(event) {
 							var errorMessage = messages["UploadingFileErr"] + file.name;

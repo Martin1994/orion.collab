@@ -412,8 +412,10 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 				case 'created':
 					var parentLocation = this.maybeTransformLocation(data.parent);
 					var result = data.result;
-					result.Parents = []; //is parents even needed for this operation?
-					result.Location = this.maybeTransformLocation(result.Location);
+					if (result) {
+						result.Parents = []; //is parents even needed for this operation?
+						result.Location = this.maybeTransformLocation(result.Location);
+					}
 					evt.created = [{'parent': parentLocation, 'result': result, 'eventData': evtData}];
 					break;
 				case 'deleted':
