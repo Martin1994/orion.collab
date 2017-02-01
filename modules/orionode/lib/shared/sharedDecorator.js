@@ -15,7 +15,7 @@ var sharedProjects = require('./db/sharedProjects');
 
 module.exports = {};
 	
-module.exports.sharedDecorator = function(rootName, req, filepath, originalJson){
+module.exports.sharedDecorator = function(contextPath, rootName, req, filepath, originalJson){
 	var result = originalJson;
 	if (!"/file" === rootName && !"/workspace" ===rootName) {//$NON-NLS-1$ //$NON-NLS-2$
 		return; 
