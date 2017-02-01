@@ -147,7 +147,10 @@ module.exports = function(options) {
     function getHubID(filepath) {
         var project = getProjectRoot(filepath);
 
-		var query = sharedProject.findOne({location: project}, 'hubid');
+		var query = sharedProject.findOne({
+			location: project,
+			'users.0': { $exists: true }
+		}, 'hubid');
 		return query.exec()
 		.then(function(doc) {
 			return doc ? doc.hubid : undefined;
@@ -239,7 +242,7 @@ module.exports = function(options) {
 	/**
 	 * req.body.project should be the project name.
 	 */
-	app.post('/shareProject', function(req, res) {
+	app.post('/:project', function(req, res) {
 		var project = req.params.project;
 		project = path.join(workspaceRoot, req.user.workspace, project);
 

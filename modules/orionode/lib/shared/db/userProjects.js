@@ -172,7 +172,9 @@ module.exports = function(options) {
 		project = projectsCollection.getProjectRoot(project);
 
 		projectsCollection.removeUserFromProject(user, project)
-		.then(removeProjectFromUser(user, project))
+		.then(function() {
+			return removeProjectFromUser(user, project);
+		})
 		.then(function(result) {
 			res.end();
 		});

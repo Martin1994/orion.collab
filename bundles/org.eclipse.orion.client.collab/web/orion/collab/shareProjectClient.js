@@ -18,7 +18,7 @@ define(["orion/xhr", "orion/Deferred", "orion/URL-shim",  "orion/form"], functio
 		addUserUrl: "/sharedWorkspace/user/",
 		removeUserUrl: "/sharedWorkspace/user/",
 		shareProject: function(project) {
-			return xhr("POST", this.shareProjectUrl + '/' + project, {
+			return xhr("POST", this.shareProjectUrl + project, {
 				headers: {
 					"Orion-Version": "1",
 					"X-Create-Options" : "no-overwrite",
@@ -27,7 +27,7 @@ define(["orion/xhr", "orion/Deferred", "orion/URL-shim",  "orion/form"], functio
 			});
 		},
 		unshareProject: function(project) {
-			return xhr("DELETE", this.unshareProjectUrl + '/' + project, {
+			return xhr("DELETE", this.unshareProjectUrl + project, {
 				headers: {
 					"Orion-Version": "1",
 					"X-Create-Options" : "no-overwrite",
@@ -36,7 +36,7 @@ define(["orion/xhr", "orion/Deferred", "orion/URL-shim",  "orion/form"], functio
 			});
 		},
 		addUser: function(username, project) {
-			return xhr("POST", this.addUserUrl + '/' + project + '/' + username, {
+			return xhr("POST", this.addUserUrl + project + '/' + username, {
 				headers: {
 					"Orion-Version": "1",
 					"X-Create-Options" : "no-overwrite",
@@ -45,7 +45,7 @@ define(["orion/xhr", "orion/Deferred", "orion/URL-shim",  "orion/form"], functio
 			});
 		},
 		removeUser: function(username, project) {
-			return xhr("DELETE", this.removeUserUrl + '/' + project + '/' + username, {
+			return xhr("DELETE", this.removeUserUrl + project + '/' + username, {
 				headers: {
 					"Orion-Version": "1",
 					"X-Create-Options" : "no-overwrite",
