@@ -197,7 +197,10 @@ module.exports = function(options) {
 		return addProject(project)
 		.then(function(doc) {
 			if (doc.users.indexOf(user) === -1) {
-				return sharedProject.findOneAndUpdate({'location': project}, {$addToSet: {'users': user} }).exec();
+				return sharedProject.findOneAndUpdate({'location': project}, {$addToSet: {'users': user} }, {
+					safe: true,
+					w: 'majority'
+				}).exec();
 			}
 		});
 
@@ -210,7 +213,10 @@ module.exports = function(options) {
 		// 	}
 		// }).then(function(doc) {
 		// 	if (doc.users.indexOf(user) === -1) {
-		// 		return sharedProject.findOneAndUpdate({'location': project}, {$addToSet: {'users': user} }).exec();
+		// 		return sharedProject.findOneAndUpdate({'location': project}, {$addToSet: {'users': user} }, {
+		//  		safe: true,
+		//  		w: 'majority'
+		//  	}).exec();
 		// 	}
 		// });
 	}
@@ -221,7 +227,10 @@ module.exports = function(options) {
 	function removeUserFromProject(user, project) {
 		return sharedProject.findOne({'location': project}).exec()
 		.then(function(doc) {
-			return sharedProject.findOneAndUpdate({'location': project}, {$pull: {'users': { $in: [user]}} }).exec();
+			return sharedProject.findOneAndUpdate({'location': project}, {$pull: {'users': { $in: [user]}} }, {
+				safe: true,
+				w: 'majority'
+			}).exec();
 		});
 	}
 
@@ -231,7 +240,7 @@ module.exports = function(options) {
 	 * req.body.project should be the project name.
 	 */
 	app.post('/shareProject', function(req, res) {
-		var project = req.body.project;
+		var project = req.params.project;
 		project = path.join(workspaceRoot, req.user.workspace, project);
 
 		if (!sharedUtil.projectExists(project)) {
@@ -250,8 +259,8 @@ module.exports = function(options) {
 	/**
 	 * req.body.project should be the project name.
 	 */
-	app.delete('/unshareProject', function(req, res) {
-		var project = req.body.project;
+	app.delete('/:project', function(req, res) {
+		var project = req.params.project;
 		project = path.join(workspaceRoot, req.user.workspace, project);
 
 		if (!sharedUtil.projectExists(project)) {
@@ -267,7 +276,7 @@ module.exports = function(options) {
 		});
 	});
 	
-	app.put('/updateProject', function(req, res) {
+	app.put('/:project', function(req, res) {
 		res.end();
 	});
 	
