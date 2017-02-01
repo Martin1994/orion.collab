@@ -13,6 +13,7 @@
  
 /*eslint-env browser, amd*/
 define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/regex', 'orion/util'], function(mEventTarget, mRegex, util) {
+
 	/**
 	 * Constructs a new TextModel with the given text and default line delimiter.
 	 *

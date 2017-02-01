@@ -1,6 +1,6 @@
 /*******************************************************************************
  * @license
- * Copyright (c) 2010, 2016 IBM Corporation and others.
+ * Copyright (c) 2010, 2016, 2017 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made 
  * available under the terms of the Eclipse Public License v1.0 
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
@@ -6382,7 +6382,6 @@ define("orion/editor/textView", [  //$NON-NLS-1$
 			var doc = clientDiv.ownerDocument;
 			var win = this._getWindow();
 			var grabNode = util.isIE ? doc : win;
-
 			handlers.push({target: win, type: "resize", handler: function(e) { return that._handleResize(e ? e : win.event);}}); //$NON-NLS-1$
 			handlers.push({target: clientDiv, type: "blur", handler: function(e) { return that._handleBlur(e ? e : win.event);}}); //$NON-NLS-1$
 			handlers.push({target: clientDiv, type: "focus", handler: function(e) { return that._handleFocus(e ? e : win.event);}}); //$NON-NLS-1$
@@ -6637,7 +6636,6 @@ define("orion/editor/textView", [  //$NON-NLS-1$
 			} finally {
 				if (e._ignoreDOMSelection) { this._ignoreDOMSelection = false; }
 			}
-			
 			this._setSelection(e.selection, show, true, callback);
 
 			undo = this._compoundChange;
