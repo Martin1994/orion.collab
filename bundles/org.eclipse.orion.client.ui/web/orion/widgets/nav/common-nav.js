@@ -380,6 +380,7 @@ define([
 			
 			//Collaboration Mode
 			commandRegistry.registerCommandContribution(contextMenuActionsScope, "orion.shareProject", 1);
+			commandRegistry.registerCommandContribution(contextMenuActionsScope, "orion.unshareProject", 1);
 
 			// Retrieve and register project commands
 			return this.preferences.get("/common-nav").then(function(prefs) { //$NON-NLS-0$

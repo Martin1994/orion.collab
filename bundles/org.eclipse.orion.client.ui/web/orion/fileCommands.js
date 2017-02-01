@@ -1324,7 +1324,7 @@ define(['i18n!orion/navigate/nls/messages', 'orion/webui/littlelib', 'orion/i18n
 			},
 			visibleWhen: function(item) {
 				if (Array.isArray(item)) {
-					if(item.length === 1){
+					if (item.length === 1) {
 						return !item[0].Parents || !item[0].Parents.length;
 					}
 				}
@@ -1332,6 +1332,29 @@ define(['i18n!orion/navigate/nls/messages', 'orion/webui/littlelib', 'orion/i18n
 			}
 		});
 		commandService.addCommand(shareProjectCommand);
+
+		var unshareProjectCommand = new mCommands.Command({
+			name: "Unshare Project",
+			tooltip: "Unshare a project",
+			description: "Remove a user from the sharing list of this project.",
+			imageClass: "core-sprite-link", //$NON-NLS-0$
+			id: "orion.unshareProject", //$NON-NLS-0$
+			parameters: new mCommandRegistry.ParametersDescription([new mCommandRegistry.CommandParameter('username', 'text', "Username:", "Enter username here")]), //$NON-NLS-5$ //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			callback: function(data) {
+				var username = data.parameters.parameterTable.username.value;
+				var project = data.items[0].Name;
+				shareProjectClient.removeUser(username, project);
+			},
+			visibleWhen: function(item) {
+				if (Array.isArray(item)) {
+					if (item.length === 1) {
+						return !item[0].Parents || !item[0].Parents.length;
+					}
+				}
+				return false;
+			}
+		});
+		commandService.addCommand(unshareProjectCommand);
 
 		return new Deferred().resolve();
 	};

@@ -83,7 +83,10 @@ module.exports = function(options) {
 	function addProjectToUser(user, project) {
 		return addUser(user)
 		.then(function(doc) {
-			return userProject.findOneAndUpdate({username: user}, {$addToSet: {'sharedProjects': project} }).exec();
+			return userProject.findOneAndUpdate({username: user}, {$addToSet: {'sharedProjects': project} }, {
+				safe: true,
+				w: 'majority'
+			}).exec();
 		});
 	}
 	
@@ -91,7 +94,10 @@ module.exports = function(options) {
 	 * Removes a project from a user's shared projects.
 	 */
 	function removeProjectFromUser(user, project) {
-		return userProject.findOneAndUpdate({username: user}, {$pull: {'sharedProjects': { $in: [project]}} }).exec();
+		return userProject.findOneAndUpdate({username: user}, {$pull: {'sharedProjects': { $in: [project]}} }, {
+			safe: true,
+			w: 'majority'
+		}).exec();
 	}
 	
 	/**
@@ -129,10 +135,10 @@ module.exports = function(options) {
 	/**
 	 * Adds a project to a user's shared project list.
 	 */
-	app.post('/addProjectUser', function(req, res) {
+	app.post('/:project/:user', function(req, res) {
 		//TODO make sure project has been shared first.
-		var project = req.body.project;
-		var user = req.body.username;
+		var project = req.params.project;
+		var user = req.params.user;
 		project = path.join(workspaceRoot, req.user.workspace, project);
 
 		if (!sharedUtil.projectExists(project)) {
@@ -159,9 +165,9 @@ module.exports = function(options) {
 	 * Removes a project from a user's shared project list.
 	 * Project might have been deleted or just user removed from shared list.
 	 */
-	app.delete('/removeProjectUser', function(req, res) {
-		var project = req.body.project;
-		var user = req.body.username;
+	app.delete('/:project/:user', function(req, res) {
+		var project = req.params.project;
+		var user = req.params.user;
 		project = path.join(workspaceRoot, req.user.workspace, project);
 		project = projectsCollection.getProjectRoot(project);
 

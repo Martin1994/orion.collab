@@ -13,58 +13,44 @@
 /*global URL*/
 define(["orion/xhr", "orion/Deferred", "orion/URL-shim",  "orion/form"], function(xhr, Deferred, _, form) {
 	return {
-		shareProjectUrl: "/sharedWorkspace/project/shareProject",
-		unshareProjectUrl: "/sharedWorskpace/project/unshareProject",
-		addUserUrl: "/sharedWorkspace/user/addProjectUser",
-		removeUserUrl: "/sharedWorkspace/user/removeProjectUser",
+		shareProjectUrl: "/sharedWorkspace/project/",
+		unshareProjectUrl: "/sharedWorskpace/project/",
+		addUserUrl: "/sharedWorkspace/user/",
+		removeUserUrl: "/sharedWorkspace/user/",
 		shareProject: function(project) {
-			return xhr("POST", this.shareProjectUrl, {
+			return xhr("POST", this.shareProjectUrl + '/' + project, {
 				headers: {
 					"Orion-Version": "1",
 					"X-Create-Options" : "no-overwrite",
 					"Content-Type": "application/json;charset=UTF-8"
-				},
-				data: JSON.stringify({
-					"project": project
-				})
+				}
 			});
 		},
 		unshareProject: function(project) {
-			return xhr("DELETE", this.unshareProjectUrl, {
+			return xhr("DELETE", this.unshareProjectUrl + '/' + project, {
 				headers: {
 					"Orion-Version": "1",
 					"X-Create-Options" : "no-overwrite",
 					"Content-Type": "application/json;charset=UTF-8"
-				},
-				data: JSON.stringify({
-					"project": project
-				})
+				}
 			});
 		},
 		addUser: function(username, project) {
-			return xhr("POST", this.addUserUrl, {
+			return xhr("POST", this.addUserUrl + '/' + project + '/' + username, {
 				headers: {
 					"Orion-Version": "1",
 					"X-Create-Options" : "no-overwrite",
 					"Content-Type": "application/json;charset=UTF-8"
-				},
-				data: JSON.stringify({
-					"project": project,
-					"username": username
-				})
+				}
 			});
 		},
 		removeUser: function(username, project) {
-			return xhr("DELETE", this.removeUserUrl, {
+			return xhr("DELETE", this.removeUserUrl + '/' + project + '/' + username, {
 				headers: {
 					"Orion-Version": "1",
 					"X-Create-Options" : "no-overwrite",
 					"Content-Type": "application/json;charset=UTF-8"
-				},
-				data: JSON.stringify({
-					"project": project,
-					"username": username
-				})
+				}
 			});
 		}
 	}
