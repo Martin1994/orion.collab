@@ -905,6 +905,6 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         OrionCollabSocketAdapter: OrionCollabSocketAdapter,
         OrionTogetherJSDelayAdapter: OrionTogetherJSDelayAdapter,
         OrionTogetherJSAdapter: OrionTogetherJSAdapter,
-        OrionEditorAdapter, OrionEditorAdapter
+        OrionEditorAdapter: OrionEditorAdapter
     };
 });
