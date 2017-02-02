@@ -1,6 +1,6 @@
 /*******************************************************************************
  * @license
- * Copyright (c) 2009, 2017 IBM Corporation and others.
+ * Copyright (c) 2009 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials are made
  * available under the terms of the Eclipse Public License v1.0
  * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution
@@ -387,6 +387,22 @@ define("orion/editor/editor", [ //$NON-NLS-0$
 		 */
 		getFoldingRulerVisible: function() {
 			return this._foldingRulerVisible;
+		},
+		/**
+		 * Creates and add a FoldingAnnotation to the editor.
+		 *
+		 * @param {Number} start The start offset of the annotation in the text model.
+		 * @param {Number} end The end offset of the annotation in the text model.
+		 * @returns {orion.editor.FoldingAnnotation} The FoldingAnnotation added to the editor.
+		 */
+		addFoldingAnnotation: function(start, end) {
+			var annotationModel = this.getAnnotationModel();
+			if(annotationModel) {
+				var foldingAnnotation = new mAnnotations.FoldingAnnotation(start, end, this.getTextView().getModel());
+				annotationModel.addAnnotation(foldingAnnotation);
+				return foldingAnnotation;
+			}
+			return null;
 		},
 		/**
 		 * Returns the line number ruler of the editor.
