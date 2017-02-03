@@ -16,7 +16,7 @@ define(['orion/EventTarget'], function(EventTarget) {
     'use strict;'
 
     var HUB_URL = "ws://localhost:8082/";
-    var DEBUG = true;
+    var DEBUG = false;
 
     /**
      * Collab socket client
