@@ -255,23 +255,12 @@ define(['i18n!orion/nls/messages', 'orion/webui/littlelib', 'orion/Deferred'], f
 								}
 								var tooltip = document.createElement('div');
 								tooltip.innerHTML = html.annotation.getDescription();
-								tooltip.style.zIndex = 999;
-								tooltip.style.padding = '10px'
-								tooltip.style.backgroundColor = '#fff';
-								tooltip.style.borderWidth = '1px';
-								tooltip.style.borderStyle = 'solid';
-								tooltip.style.wordBreak = 'break-all';
-								tooltip.style.width = '200px';
-								tooltip.style.minHeight = '20px';
-								tooltip.style.position = 'absolute';
+								tooltip.classList.add("treetable-tooltip");
 								tooltip.style.left = e.clientX + 'px';
 								tooltip.style.top = e.clientY + 'px';
 								var cross = document.createElement('div');
 								cross.innerHTML = '×';
-								cross.style.position = 'absolute';
-								cross.style.right = '3px';
-								cross.style.top = '1px';
-								cross.style.cursor = 'pointer';
+								cross.classList.add("cross");
 								tooltip.appendChild(cross);
 								document.body.appendChild(tooltip);
 								tooltip.remove = function (e2) {
