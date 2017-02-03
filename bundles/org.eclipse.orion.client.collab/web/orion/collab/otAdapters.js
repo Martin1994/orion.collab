@@ -651,7 +651,10 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         var deltaLine = this.myLine - oldLine;
         if (deltaLine !== 0) {
             // Try to put the current line at the same position on the screen
-            this.collabClient.textView.tryScrollLines(deltaLine);
+            var lineHeight = this.collabClient.textView.getLineHeight();
+			var deltaY = deltaLine * lineHeight;
+            var originY = this.collabClient.textView.getTopPixel();
+            this.collabClient.textView.setTopPixel(originY + deltaY);
         }
     };
 

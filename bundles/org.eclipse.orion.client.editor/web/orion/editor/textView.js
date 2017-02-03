@@ -6846,11 +6846,6 @@ define("orion/editor/textView", [  //$NON-NLS-1$
 			if (pixelX) { viewDiv.scrollLeft += pixelX; }
 			if (pixelY) { viewDiv.scrollTop += pixelY; }
 		},
-		tryScrollLines: function(deltaLine) {
-			var lineHeight = this.getLineHeight();
-			var deltaY = deltaLine * lineHeight;
-			this._scrollView(0, deltaY);
-		},
 		_setClipboardText: function (text, evt) {
 			if (util.isElectron && !evt) {
 				window.__electron.clipboard.writeText(text);
