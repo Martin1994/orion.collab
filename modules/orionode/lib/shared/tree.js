@@ -26,6 +26,7 @@ module.exports.router = function(options) {
 	var sharedRoot = options.root;
 	if (!workspaceRoot) { throw new Error('options.options.workspaceDir required'); }
 	var xfer = require('../xfer')(options.options);
+	var contextPath = options.options.configParams["orion.context.path"] || "";
 
 	return express.Router()
 	.get('/', getSharedWorkspace)
@@ -195,7 +196,7 @@ module.exports.router = function(options) {
 
 		req.user.workspaceDir = workspaceRoot;
 		var filepath = path.join(workspaceRoot, rest, name);
-		fileUtil.handleFilePOST(sharedRoot, req, res, filepath);
+		fileUtil.handleFilePOST(contextPath, sharedRoot, req, res, filepath);
 	}
 
 	/**
