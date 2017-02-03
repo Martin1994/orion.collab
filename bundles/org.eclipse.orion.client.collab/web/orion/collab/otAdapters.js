@@ -266,7 +266,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
             case 'authenticated':
                 // Do some initialization
                 this.authenticated = true;
-                this.collabClient.onLocationChanged();
+                this.collabClient.sendCurrentLocation();
                 this.updateClient({
                     name: this.collabClient.getClientDisplayedName()
                 });

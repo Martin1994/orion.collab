@@ -10,12 +10,24 @@
  ******************************************************************************/
 
 /*eslint-env browser, amd */
-define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
-	'orion/collab/collabFileAnnotation', 'orion/collab/otAdapters', 'orion/collab/collabPeer',
-	'orion/collab/collabSocket'],
-	function(mAnnotations, ot, mTreeTable, mCollabFileAnnotation, mOtAdapters, mCollabPeer, mCollabSocket) {
+define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/otAdapters',
+	'orion/collab/collabPeer', 'orion/collab/collabSocket'],
+	function(ot, mCollabFileAnnotation, mOtAdapters, mCollabPeer, mCollabSocket) {
 
     'use strict';
+
+	var mAnnotations;
+	var mTreeTable;
+	var AT;
+
+	function init(callback) {
+		require(['orion/editor/annotations', 'orion/webui/treetable'], function(_mAnnotations, _mTreeTable) {
+			mAnnotations = _mAnnotations;
+			mTreeTable = _mTreeTable;
+			AT = mAnnotations.AnnotationType;
+			callback();
+		});
+	}
 
 	var CollabFileAnnotation = mCollabFileAnnotation.CollabFileAnnotation;
 	var OrionCollabSocketAdapter = mOtAdapters.OrionCollabSocketAdapter;
@@ -23,8 +35,6 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 	var OrionTogetherJSDelayAdapter = mOtAdapters.OrionTogetherJSDelayAdapter;
 	var OrionEditorAdapter = mOtAdapters.OrionEditorAdapter;
 	var CollabPeer = mCollabPeer.CollabPeer;
-
-	var AT = mAnnotations.AnnotationType;
 	
 	// ms to delay updating collaborator annotation.
 	// We need this delay because the annotation is updated asynchronizedly and is transferd in multiple
@@ -40,7 +50,7 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 		this.editor = editor;
 		this.inputManager = inputManager;
 		this.fileClient = fileClient;
-		this.textView = null;
+		this.textView = this.editor.getTextView();
 		var self = this;
 		this.collabMode = false;
 		this.clientId = '';
@@ -51,18 +61,11 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 		this.editor.addEventListener('TextViewUninstalled', function(event) {self.viewUninstalled.call(self, event);});
 		this.projectSessionID = '';
 		this.inputManager.addEventListener('InputChanged', function(e) {
-			if (e.metadata.Attributes) {
-				var projectSessionID = e.metadata.Attributes.hubID;
-				if (self.projectSessionID !== projectSessionID) {
-					self.projectSessionID = projectSessionID;
-					self.projectChanged(projectSessionID);
-				}
-			}
+			self.onInputChanged(e)
 		});
 		this.ot = null;
 		this.otOrionAdapter = null;
 		this.otSocketAdapter = null;
-		window.addEventListener('hashchange', function() { self.onLocationChanged(); });
 		this.awaitingClients = false;
 		this.collabFileAnnotations = {};
 		// Timeout id to indicate whether a delayed update has already been assigned
@@ -72,6 +75,17 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 		 * @type {Object.<string, CollabPeer>}
 		 */
 		this.peers = {};
+		// Initialize current project
+		var file = this.inputManager.getInput();
+		var metadata = this.inputManager.getFileMetadata();
+		if (metadata) {
+			this.onInputChanged({
+				metadata: metadata,
+				input: {
+					resource: file
+				}
+			});
+		}
 	}
 
 	CollabClient.prototype = {
@@ -116,11 +130,26 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 		},
 
 		/**
-		 * Hash changed handler
+		 * Input changed handler
 		 */
-		onLocationChanged: function() {
+		onInputChanged: function(e) {
+			this.location = e.input.resource;
 			this.updateSelfFileAnnotation();
 			this.destroyOT();
+			this.sendCurrentLocation();
+			if (e.metadata.Attributes) {
+				var projectSessionID = e.metadata.Attributes.hubID;
+				if (this.projectSessionID !== projectSessionID) {
+					this.projectSessionID = projectSessionID;
+					this.projectChanged(projectSessionID);
+				}
+			}
+		},
+
+		/**
+		 * Send current location to collab peers
+		 */
+		sendCurrentLocation: function() {
 			if (this.otSocketAdapter && this.otSocketAdapter.authenticated) {
 				this.otSocketAdapter.sendLocation(this.currentDoc());
 			}
@@ -303,14 +332,14 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 			var workspace = this.getFileSystemPrefix();
 			if (workspace !== '/file/') {
 		        //get everything after 'workspace name'
-		        return location.hash.substring(location.hash.indexOf(workspace) + workspace.length).split('/').slice(3).join('/');
+		        return this.location.substring(this.location.indexOf(workspace) + workspace.length).split('/').slice(3).join('/');
 			} else {
-		        return location.hash.substring(location.hash.indexOf(workspace) + workspace.length, location.hash.length);
+		        return this.location.substring(this.location.indexOf(workspace) + workspace.length, this.location.length);
 			}
 		},
 
 		getFileSystemPrefix: function() {
-			return location.hash.indexOf('/sharedWorkspace') === 1 ? '/sharedWorkspace/tree/file/' : '/file/';
+			return this.location.indexOf('/sharedWorkspace') === 0 ? '/sharedWorkspace/tree/file/' : '/file/';
 		},
 
 		viewInstalled: function(event) {
@@ -473,7 +502,7 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 					file = file.split('/').slice(3).join('/');
 				} else {
 					// since you need to workspace info, add that in.
-					var projectLoc = location.hash.substring(location.hash.indexOf(loc) + loc.length);
+					var projectLoc = this.location.substring(this.location.indexOf(loc) + loc.length);
 					projectLoc = projectLoc.split('/').slice(0,3).join('/') + '/';
 					file = projectLoc + file;
 				}
@@ -501,6 +530,7 @@ define(['orion/editor/annotations', 'orion/collab/ot', 'orion/webui/treetable',
 	CollabClient.prototype.constructor = CollabClient;
 
 	return {
-		CollabClient: CollabClient
+		CollabClient: CollabClient,
+		init: init
 	};
 });

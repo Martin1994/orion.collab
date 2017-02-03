@@ -46,8 +46,7 @@ define([
 	'orion/commonPreferences',
 	'embeddedEditor/helper/memoryFileSysConst',
 	'orion/objects',
-	'orion/formatter',
-	'orion/collab/collabClient'
+	'orion/formatter'
 ], function(
 	messages,
 	mEditor, mEventTarget, mTextView, mTextModelFactory, mEditorFeatures, mHoverFactory, mContentAssist,
@@ -56,7 +55,7 @@ define([
 	mDispatcher, EditorContext, Highlight,
 	mMarkOccurrences, mSyntaxchecker, LiveEditSession,
 	mProblems, mBlamer, mDiffer,
-	mKeyBinding, util, Deferred, mContextMenu, mMetrics, mCommonPreferences, memoryFileSysConst, objects, mFormatter, mCollabClient
+	mKeyBinding, util, Deferred, mContextMenu, mMetrics, mCommonPreferences, memoryFileSysConst, objects, mFormatter
 ) {
 	var inMemoryFilePattern = memoryFileSysConst.MEMORY_FILE_PATTERN;
 	var Dispatcher = mDispatcher.Dispatcher;
@@ -460,7 +459,13 @@ define([
 				domNode: this._parent,
 				syntaxHighlighter: this.syntaxHighlighter
 			});
-			var collab = new mCollabClient.CollabClient(editor, this.inputManager, this.fileClient, this.serviceRegistry);
+			if (true) {
+				require(['orion/collab/collabClient'], function(mCollabClient){
+					mCollabClient.init(function() {
+						var collab = new mCollabClient.CollabClient(editor, that.inputManager, that.fileClient, that.serviceRegistry);
+					})
+				});
+			}
 			editor.id = "orion.editor"; //$NON-NLS-0$
 			editor.processParameters = function(params) {
 				parseNumericParams(params, ["start", "end", "line", "offset", "length"]); //$NON-NLS-4$ //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-5$
