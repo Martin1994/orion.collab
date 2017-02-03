@@ -623,6 +623,7 @@ define("orion/editor/textModel", ['orion/editor/eventTarget', 'orion/regex', 'or
 			var modelChangedEvent = {
 				type: "Changed", //$NON-NLS-0$
 				start: eventStart,
+				text: text,
 				removedCharCount: removedCharCount,
 				addedCharCount: addedCharCount,
 				removedLineCount: removedLineCount,
