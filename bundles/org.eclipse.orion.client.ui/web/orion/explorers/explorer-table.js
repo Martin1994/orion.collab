@@ -52,14 +52,14 @@ define([
 			this.filteredResources = filteredResources;
 		}
 		this._annotations = [];
-		// Listen to collaborator position changed events
-		this._collabChangedHandler = this._handleCollabChanged.bind(this)
-		this.fileClient.addEventListener('CollabChanged', this._collabChangedHandler);
+		// Listen to annotation changed events
+		this._annotationChangedHandler = this._handleAnnotationChanged.bind(this)
+		this.fileClient.addEventListener('AnnotationChanged', this._annotationChangedHandler);
 	}
 	FileModel.prototype = new mExplorer.ExplorerModel();
 	objects.mixin(FileModel.prototype, /** @lends orion.explorer.FileModel.prototype */ {
 		destroy: function () {
-			removeEventListener(this._collabChangedHandler, this._collabChangedHandler);
+			removeEventListener(this._annotationChangedHandler, this._annotationChangedHandler);
 			mExplorer.ExplorerModel.prototype.destroy.call(this);
 		},
 
@@ -165,12 +165,19 @@ define([
 			return this._annotations;
 		},
 
-		_handleCollabChanged: function(evt) {
+		_handleAnnotationChanged: function(evt) {
+			var model = this;
+			if (evt.removeType) {
+				for (var i = this._annotations.length - 1; i >= 0; i--) {
+					if (this._annotations[i] instanceOf evt.removeType) {
+						this._annotations.splice(i, 1);
+					}
+				}
+			}
 			console.assert(Array.isArray(evt.annotations));
-			// TODO: once we have other type of annotations, we need to remove
-			//       all collab annotations and then add those from the event,
-			//       instead of replacing the whole annotation list.
-			this._annotations = evt.annotations;
+			this._annotations = evt.annotations.forEach(function(annotation) {
+				model._annotations.push(annotation);
+			});
 		}
 	});
 
@@ -238,8 +245,8 @@ define([
 		this.modelEventDispatcher = modelEventDispatcher;
 		// Listen to all resource changed events
 		this.fileClient.addEventListener("Changed", this._resourceChangedHandler = this.handleResourceChange.bind(this));
-		// Listen to collaborator position changed events
-		this.fileClient.addEventListener('CollabChanged', this._collabChangedHandler = this._handleCollabChanged.bind(this));
+		// Listen to annotation changed events
+		this.fileClient.addEventListener('AnnotationChanged', this._annotationChangedHandler = this._handleAnnotationChanged.bind(this));
 		// Listen to model changes from fileCommands
 		var _self = this;
 		this._modelListeners = {};
@@ -300,7 +307,7 @@ define([
 				parentNode.removeEventListener("click", this._clickListener);
 			}
 			this.fileClient.removeEventListener("Changed", this._resourceChangedHandler);
-			this.fileClient.removeEventListener("CollabChanged", this._collabChangedHandler);
+			this.fileClient.removeEventListener("AnnotationChanged", this._annotationChangedHandler);
 			mExplorer.Explorer.prototype.destroy.call(this);
 		},
 		_isFileCreationAtRootEnabled : function() {
@@ -412,7 +419,7 @@ define([
 		//			this.dispatchEvent(clickEvent);
 		//		},
 
-		_handleCollabChanged: function(evt) {
+		_handleAnnotationChanged: function(evt) {
 			if (this.myTree) {
 				this.myTree.requestAnnotationRefresh();
 			}

@@ -209,7 +209,8 @@ define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/ot
 						}
 					}
 					self.fileClient.dispatchEvent({
-						type: 'CollabChanged',
+						type: 'AnnotationChanged',
+						removeType: CollabFileAnnotation,
 						annotations: annotations
 					});
 				}, COLLABORATOR_ANNOTATION_UPDATE_DELAY);
