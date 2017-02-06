@@ -499,7 +499,7 @@ module.exports = function(options) {
 		}
 		var user = userJSON(req.user)
 		//add the web token with the response
-		user.jwt = jwt.sign({'username': user.UserName}, options.configParams["orion.jwt.secret"]);
+		user.jwt = jwt.sign({'username': user.UserName}, options.configParams["orion.jwt.secret"] || '');
 		return res.status(200).json(user);
 	});
 	
