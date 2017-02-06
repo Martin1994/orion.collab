@@ -169,13 +169,13 @@ define([
 			var model = this;
 			if (evt.removeType) {
 				for (var i = this._annotations.length - 1; i >= 0; i--) {
-					if (this._annotations[i] instanceOf evt.removeType) {
+					if (this._annotations[i] instanceof evt.removeType) {
 						this._annotations.splice(i, 1);
 					}
 				}
 			}
 			console.assert(Array.isArray(evt.annotations));
-			this._annotations = evt.annotations.forEach(function(annotation) {
+			evt.annotations.forEach(function(annotation) {
 				model._annotations.push(annotation);
 			});
 		}
