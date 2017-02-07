@@ -370,13 +370,13 @@ define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/ot
 			} else {
 				this.otSocketAdapter.authenticate();
 			}
-			this.inputManager.collabRunning = true;
+			this.inputManager.syncEnabled = false;
 		},
 
 		socketDisconnected: function() {
 			this.socket = null;
 			this.otSocketAdapter = null;
-			this.inputManager.collabRunning = false;
+			this.inputManager.syncEnabled = true;
 			this.destroyOT();
 			this.resetCollabFileAnnotation();
 		},
