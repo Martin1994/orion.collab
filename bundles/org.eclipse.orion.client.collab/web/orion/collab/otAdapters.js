@@ -274,7 +274,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
                     type: 'get-clients'
                 }));
                 if (this.collabClient.textView) {
-					this.sendInit();
+					this.collabClient.viewInstalled();
                 }
                 break;
 
