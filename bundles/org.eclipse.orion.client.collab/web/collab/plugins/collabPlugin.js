@@ -8,9 +8,9 @@ define([
 	"plugins/filePlugin/fileImpl"
 ], function(PluginProvider, messages, Deferred, i18nUtil, EventTarget, collabFileImpl, FileServiceImpl) {
 		var headers = {
-			name: "Orion Shared Workspaces support",
+			name: "Orion Collaboration Support",
 			version: "1.0",
-			description: "This plug-in provides shared workspace to the Orion File Service."
+			description: "This plug-in provides Orion collaboration feature."
 		};
 		var provider = new PluginProvider(headers);
 		var service = new collabFileImpl("/sharedWorkspace/tree");

@@ -748,7 +748,8 @@ define([
 						evt.session.apply();
 					}
 				}
-				evt.type = 'ModelLoaded';
+				evt = {};
+				evt.type = 'TextViewInstalled';
 				this.editor.dispatchEvent(evt);
 			}
 

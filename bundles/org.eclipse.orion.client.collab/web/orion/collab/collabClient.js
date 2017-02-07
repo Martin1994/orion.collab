@@ -11,8 +11,8 @@
 
 /*eslint-env browser, amd */
 define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/otAdapters',
-	'orion/collab/collabPeer', 'orion/collab/collabSocket'],
-	function(ot, mCollabFileAnnotation, mOtAdapters, mCollabPeer, mCollabSocket) {
+	'orion/collab/collabPeer', 'orion/collab/collabSocket', 'orion/collab/collabFileCommands'],
+	function(ot, mCollabFileAnnotation, mOtAdapters, mCollabPeer, mCollabSocket, mCollabFileCommands) {
 
     'use strict';
 
@@ -25,7 +25,9 @@ define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/ot
 			mAnnotations = _mAnnotations;
 			mTreeTable = _mTreeTable;
 			AT = mAnnotations.AnnotationType;
-			callback();
+			mCollabFileCommands.init(function() {
+				callback();
+			});
 		});
 	}
 
@@ -46,7 +48,8 @@ define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/ot
 	 * @class 
 	 * @name orion.collabClient.CollabClient
 	 */
-	function CollabClient(editor, inputManager, fileClient, serviceRegistry) {
+	function CollabClient(editor, inputManager, fileClient, serviceRegistry, commandRegistry) {
+		mCollabFileCommands.createFileCommands(serviceRegistry, commandRegistry, fileClient);
 		this.editor = editor;
 		this.inputManager = inputManager;
 		this.fileClient = fileClient;
@@ -57,7 +60,7 @@ define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/ot
 		this.clientDisplayedName = '';
 		this.fileClient.addEventListener('Changed', self.sendFileOperation.bind(self));
 		this.serviceRegistry = serviceRegistry;
-		this.editor.addEventListener('ModelLoaded', function(event) {self.viewInstalled.call(self, event);});
+		this.editor.addEventListener('TextViewInstalled', function(event) {self.viewInstalled.call(self, event);});
 		this.editor.addEventListener('TextViewUninstalled', function(event) {self.viewUninstalled.call(self, event);});
 		this.projectSessionID = '';
 		this.inputManager.addEventListener('InputChanged', function(e) {
