@@ -76,6 +76,7 @@ collab/web
     8. (Bug) Figure out how to deal with code folding and split window
     9. Handle socket failure (prevent non-owner from editing?)
     10. Add trigger to enable/disable shared mode
+    11. Support MarkdownEditor
 
 ### <a name="ws-section"></a>WebSocket Server
 Clients connect to the server with a session ID that represents the selected project. The WebSocket server has 3 layers and the messages flow in a single direction down the layers:
