@@ -161,6 +161,7 @@ define([
 				}
 			}.bind(this));
 		}
+		this.syncEnabled = true;
 	}
 	objects.mixin(InputManager.prototype, /** @lends orion.editor.InputManager.prototype */ {
 		/**
@@ -220,7 +221,7 @@ define([
 					progress(fileClient.read(resource, true), messages.ReadingMetadata, fileURI).then(function(data) {
 						if (this._fileMetadata && !this._fileMetadata._saving && this._fileMetadata.Location === data.Location && this._fileMetadata.ETag !== data.ETag) {
 							this._fileMetadata = objects.mixin(this._fileMetadata, data);
-							if (!editor.isDirty() || window.confirm(messages.loadOutOfSync)) {
+							if (this.syncEnabled && (!editor.isDirty() || window.confirm(messages.loadOutOfSync))) {
 								progress(fileClient.read(resource), messages.Reading, fileURI).then(function(contents) {
 									editor.setInput(fileURI, null, contents, null, nofocus);
 									this._clearUnsavedChanges();
@@ -352,11 +353,11 @@ define([
 		onFocus: function() {
 			// If there was an error while auto saving, auto save is temporarily disabled and
 			// we retry saving every time the editor gets focus
-			if (this._autoSaveEnabled && this._errorSaving) {
+			if (this._autoSaveEnabled && this._errorSaving && this.syncEnabled) {
 				this.save();
 				return;
 			}
-			if (this._autoLoadEnabled && this._fileMetadata) {
+			if (this._autoLoadEnabled && this._fileMetadata && this.syncEnabled) {
 				this.load();
 			}
 		},
@@ -381,7 +382,7 @@ define([
 				return deferred;
 			}
 			var editor = this.getEditor();
-			if (!editor || !editor.isDirty() || this.getReadOnly()) { return done(); }
+			if (!this.syncEnabled || !editor || !editor.isDirty() || this.getReadOnly()) { return done(); }
 			var failedSaving = this._errorSaving;
 			var input = this.getInput();
 			this.reportStatus(messages['Saving...']);
@@ -493,7 +494,7 @@ define([
 				};
 				this._idle = new Idle(options);
 				this._idle.addEventListener("Idle", function () { //$NON-NLS-0$
-					if (!this._errorSaving) {
+					if (!this._errorSaving && this.syncEnabled) {
 						this._autoSaveActive = true;
 						this.save().then(function() {
 							this._autoSaveActive = false;
@@ -567,9 +568,9 @@ define([
 				var oldResource = oldInput.resource;
 				var newResource = input.resource;
 				if (oldResource !== newResource || encodingChanged) {
-					if (this._autoSaveEnabled) {
+					if (this._autoSaveEnabled && this.syncEnabled) {
 						this.save();
-					} else if (!window.confirm(messages.confirmUnsavedChanges)) {
+					} else if (this.syncEnabled && !window.confirm(messages.confirmUnsavedChanges)) {
 						window.location.hash = oldLocation;
 						this.reveal(this.getFileMetadata());
 						return;
@@ -747,6 +748,9 @@ define([
 						evt.session.apply();
 					}
 				}
+				evt = {};
+				evt.type = 'TextViewInstalled';
+				this.editor.dispatchEvent(evt);
 			}
 
 			this._saveEventLogged = false;

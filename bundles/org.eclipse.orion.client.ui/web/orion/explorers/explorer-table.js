@@ -51,10 +51,19 @@ define([
 			//is set from project nav not via arguments
 			this.filteredResources = filteredResources;
 		}
+		this._annotations = [];
+		// Listen to annotation changed events
+		this._annotationChangedHandler = this._handleAnnotationChanged.bind(this)
+		this.fileClient.addEventListener('AnnotationChanged', this._annotationChangedHandler);
 	}
 	FileModel.prototype = new mExplorer.ExplorerModel();
 	objects.mixin(FileModel.prototype, /** @lends orion.explorer.FileModel.prototype */ {
-		getRoot: function(onItem) {
+		destroy: function () {
+			removeEventListener(this._annotationChangedHandler, this._annotationChangedHandler);
+			mExplorer.ExplorerModel.prototype.destroy.call(this);
+		},
+
+		getRoot: function(onItem){
 			onItem(this.root);
 		},
 
@@ -150,6 +159,25 @@ define([
 				result = this.root.Children.length > 0;
 			}
 			return result;
+		},
+
+		getAnnotations: function() {
+			return this._annotations;
+		},
+
+		_handleAnnotationChanged: function(evt) {
+			var model = this;
+			if (evt.removeType) {
+				for (var i = this._annotations.length - 1; i >= 0; i--) {
+					if (this._annotations[i] instanceof evt.removeType) {
+						this._annotations.splice(i, 1);
+					}
+				}
+			}
+			console.assert(Array.isArray(evt.annotations));
+			evt.annotations.forEach(function(annotation) {
+				model._annotations.push(annotation);
+			});
 		}
 	});
 
@@ -212,10 +240,13 @@ define([
 		this.checkbox = false;
 		this._hookedDrag = false;
 		this.filteredResources = options.filteredResources;
+		this._annotations = [];
 		var modelEventDispatcher = options.modelEventDispatcher ? options.modelEventDispatcher : new EventTarget();
 		this.modelEventDispatcher = modelEventDispatcher;
-		//Listen to all resource changed events
+		// Listen to all resource changed events
 		this.fileClient.addEventListener("Changed", this._resourceChangedHandler = this.handleResourceChange.bind(this));
+		// Listen to annotation changed events
+		this.fileClient.addEventListener('AnnotationChanged', this._annotationChangedHandler = this._handleAnnotationChanged.bind(this));
 		// Listen to model changes from fileCommands
 		var _self = this;
 		this._modelListeners = {};
@@ -276,6 +307,7 @@ define([
 				parentNode.removeEventListener("click", this._clickListener);
 			}
 			this.fileClient.removeEventListener("Changed", this._resourceChangedHandler);
+			this.fileClient.removeEventListener("AnnotationChanged", this._annotationChangedHandler);
 			mExplorer.Explorer.prototype.destroy.call(this);
 		},
 		_isFileCreationAtRootEnabled : function() {
@@ -368,6 +400,7 @@ define([
 				return items[0];
 			});
 		},
+
 		//		_clickLink: function(linkElement) {
 		//			if (linkElement.tagName === "A") { //$NON-NLS-0$
 		//				var temp = linkElement;
@@ -385,8 +418,17 @@ define([
 		//		onLinkClick: function(clickEvent) {
 		//			this.dispatchEvent(clickEvent);
 		//		},
+
+		_handleAnnotationChanged: function(evt) {
+			if (this.myTree) {
+				this.myTree.requestAnnotationRefresh();
+			}
+		},
+
 		onModelCreate: function(modelEvent) {
-			return this.changedItem(modelEvent.parent, true);
+			// We don't want file changes disturbe the user's current workflow,
+			// so here disables forceExpand
+			return this.changedItem(modelEvent.parent, false);
 		},
 		onModelCopy: function(modelEvent) {
 			var ex = this,
@@ -397,7 +439,7 @@ define([
 				changedLocations[itemParent.Location] = itemParent;
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], true);
+				return ex.changedItem(changedLocations[loc], false);
 			}));
 		},
 		onModelMove: function(modelEvent) {
@@ -434,7 +476,7 @@ define([
 				}
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], true);
+				return ex.changedItem(changedLocations[loc], false);
 			}));
 		},
 		onModelDelete: function(modelEvent) {
@@ -466,7 +508,7 @@ define([
 				}
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], true);
+				return ex.changedItem(changedLocations[loc], false);
 			}));
 		},
 
@@ -943,7 +985,15 @@ define([
 						},
 						loadend: function(event) {
 							destroy();
-							this.changedItem(targetItem, true);
+							this.fileClient.dispatchEvent({
+								type: "Changed",
+								created: [{
+									parent: targetItem.Location,
+									eventData: {
+										select: false
+									}
+								}]
+							});
 						}.bind(this),
 						error: function(event) {
 							var errorMessage = messages["UploadingFileErr"] + file.name;
