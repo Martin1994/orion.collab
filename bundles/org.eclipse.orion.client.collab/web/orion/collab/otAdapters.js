@@ -493,7 +493,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         // We want to fire save the deleted/replaced text during a 'modelChanging' event if applicable,
         // so that we can use it to create the reverse operation used for the undo-stack after the model has changed.
         if (change.removedCharCount > 0) {
-            this.deleteContent = this.orion.getText(change.start, change.start + change.removedCharCount);
+            this.deleteContent = this.model.getText(change.start, change.start + change.removedCharCount);
         }
 
         this.changeInProgress = true;
@@ -526,7 +526,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     };
 
     OrionEditorAdapter.prototype.getValue = function () {
-        return this.orion.getText();
+        return this.model.getText();
     };
 
     OrionEditorAdapter.prototype.getSelection = function () {

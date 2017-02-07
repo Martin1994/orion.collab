@@ -320,7 +320,9 @@ define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/ot
 			if (this.ot && this.otOrionAdapter) {
 				this.otOrionAdapter.detach();
 				//reset to regular undo/redo behaviour
-				this.editor.getTextActions().init();
+				if (this.textView) {
+					this.editor.getTextActions().init();
+				}
 				this.ot = null;
 				if (this.otSocketAdapter) {
 					var msg = {
@@ -360,6 +362,7 @@ define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/ot
 
 		viewUninstalled: function(event) {
 			this.textView = null;
+			this.destroyOT();
 		},
 
 		socketConnected: function() {
