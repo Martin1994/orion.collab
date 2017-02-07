@@ -28,7 +28,7 @@ define([
 	'orion/generalPreferences',
 	'orion/metrics',
 	'orion/util',
-	'orion/deferred'
+	'orion/Deferred'
 ], function(
 	messages, objects, lib, mExplorer, mNavigatorRenderer, mKeyBinding,
 	FileCommands, ProjectCommands, ExtensionCommands, mGlobalCommands, Selection, URITemplate, PageUtil, mContextMenu, mGeneralPreferences, mMetrics, util, Deferred
