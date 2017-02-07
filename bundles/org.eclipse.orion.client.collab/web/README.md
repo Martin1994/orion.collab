@@ -68,7 +68,7 @@ collab/web
 	TODO: 
     1. Full UI for invite/share
     2. Single user mode collaboration
-    3. (Bug) File operations from collab peers should close the current user's context menu
+    3. (Bug) File operations from collab peers shouldn't close the current user's context menu
     4. Edit Selection to move along with the Undo stack
     5. Add quick progress screen/bar while connecting/authenticating to socket to give users context
     6. Progress screen while fetching document content
