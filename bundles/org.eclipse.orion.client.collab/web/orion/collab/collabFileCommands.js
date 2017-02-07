@@ -10,7 +10,7 @@
  ******************************************************************************/
 
 /*eslint-env browser, amd */
-define([], function() {
+define(['orion/collab/shareProjectClient'], function(shareProjectClient) {
 
     'use strict';
 
