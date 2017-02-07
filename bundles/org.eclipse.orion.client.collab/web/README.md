@@ -32,6 +32,7 @@ Server component for loading a user's shared workspace content, for handling fil
     1. Combine userprojects table with orionaccounts or at least check for user existence on invite.
     2. Better error handling for db queries.
     3. Since projects are uniquely identified by their path, if project gets deleted/renamed, cross-reference to database.
+    4. Hub server api (tree/load tree/save) and file decorator (hub id) in single user mode
 
 ### <a name="cs-section"></a>Client-side collab (OT & shared workspace implementation)
 As the editor loads (orion/ui/editorView.js), the collabClient is initialized ```new collabClient(editor, inputManager, fileClient)```. Once a project is selected, if it is a shared project, the client connects to the websocket with the project's hubID ```new WebSocket("ws://hubserver/hubID")``` and the collabClient starts catching and sending messages. Once a document is selected and the textView loads, the OT is started.
@@ -47,24 +48,17 @@ collab/web
 │
 └───orion
 │   └───collab
-│		  │	shareProjectClient.js
-│   	  │	collabFileImpl.js
-│   	  │	collabSocket.js
-│   	  │	ot.js
-│   	  │	collabClient.js
+│		  │	shareProjectClient.js   Interface for requests to sharedWorkspace database endpoints (for invite/share project).
+│   	  │	collabFileImpl.js       File client implementation for shared workspace (create/delete file, fetch children, etc).
+│   	  │	collabSocket.js         Communication socket to hub server
+│   	  │	ot.js                   OT library (third party, unmodified). Provides concurrent collaboration operations and a undo/redo stack.
+|         | otAdapters.js           Adapter classes for OT to interact with Orion
+│   	  │	collabClient.js         Entry point of client side collaboration feature
+|         | collabFileAnnotation.js Collab file annotation used in file nav tree
+|         | collabPeer.js           Collab peer class
+|         | collabFileCommands.js   Defines "share/unshare" project commands
 
 ```
-
-- 	***collab/shareProjectClient.js***: Interface for requests to sharedWorkspace database endpoints (for invite/share project).
-
-
-- 	***collab/collabFileImpl.js***: file client implementation for shared workspace (create/delete file, fetch children, etc).
-
-
-- 	***collab/collabSocket.js***: UNUSED. Should include the socket logic, replacing what is currently in togetherjs and collabClient.
-
-
-- 	***collab/ot.js***: OT logic as well as undo stack overriding. (The included selection logic and clients tracking unused but can be moved from collabClient).
 
 
 - ***collab/collabClient.js***: Main file for client-side collaboration. Takes in the editor and textView and makes things happen like annotations, prevent auto-save/auto-load, tree updates, etc. Handles doc-level messages (operations, selections, acknowledgement, etc), and starts the OT session.
@@ -73,13 +67,13 @@ collab/web
 
 	TODO: 
     1. Full UI for invite/share
-    2. Rewrite session socket logic currently using Tjs (Socket connection + session management + UI)
-    3. [done] Move selection logic to OT.js for better integration
+    2. Single user mode collaboration
+    3. (Bug) File operations from collab peers should close the current user's context menu
     4. Edit Selection to move along with the Undo stack
     5. Add quick progress screen/bar while connecting/authenticating to socket to give users context
     6. Progress screen while fetching document content
     7. Connect to socket directly after sharing a project, not just on project selection
-    8. Ensure unnecessary info in hash are ignored for identifying a file (i.e. readme.md,editor=true...)
+    8. (Bug) Figure out how to deal with code folding and split window
     9. Handle socket failure (prevent non-owner from editing?)
     10. Add trigger to enable/disable shared mode
 
@@ -124,10 +118,12 @@ This requires that the Orion server (orion.conf) and WebSocket server (config fi
 ### Setting up Collab mode
 1. Ensure the jwt secret is the same on both Orion and the WS Server.
 2. Link the WS server to Orion by setting the Orion url in the config file.
-3. (Temporary: In orion/ui/edit/collaboration, run grunt build)
-4. Run both servers.
-5. Log in to Orion.
-6. That's it :)
+3. Link Orion client to WS server by setting the url in collabSocket.js.
+4. Add `./bundles/org.eclipse.orion.client.collab/web` to `append.static.assets` in `orion.conf`.
+5. Enable `collab/plugins/collabPlugin.html` plugin.
+6. Run both servers.
+7. Log in to Orion.
+8. That's it :)
 
 [shared workspace]: #sw-section
 [client side]: #cs-section
