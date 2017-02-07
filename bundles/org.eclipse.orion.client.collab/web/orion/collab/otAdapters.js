@@ -320,10 +320,10 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         this.send(JSON.stringify(clientData));
     };
 
-    var OrionEditorAdapter = function (orion, collabClient, annotationTypes) {
-        this.editor = orion;
-        this.orion = orion.getTextView();
-        this.model = orion.getModel();
+    var OrionEditorAdapter = function (editor, collabClient, annotationTypes) {
+        this.editor = editor;
+        this.orion = editor.getTextView();
+        this.model = editor.getModel();
         this.ignoreNextChange = false;
         this.changeInProgress = false;
         this.selectionChanged = false;
@@ -343,8 +343,8 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         this._onBlur = this.onBlur.bind(this);
         this._selectionListener = this.selectionListener.bind(this);
 
-        this.orion.addEventListener('ModelChanging', this._onChanging);
-        this.orion.addEventListener('ModelChanged', this._onChanged);
+        this.model.addEventListener('Changing', this._onChanging);
+        this.model.addEventListener('Changed', this._onChanged);
         this.orion.addEventListener('cursorActivity', this._onCursorActivity);
         this.orion.addEventListener('focus', this._onFocus);
         this.orion.addEventListener('blur', this._onBlur);
@@ -353,23 +353,19 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
 
     // Removes all event listeners from the Orion instance.
     OrionEditorAdapter.prototype.detach = function () {
-        this.orion.removeEventListener('ModelChanging', this._onChanging);
-        this.orion.removeEventListener('ModelChanged', this._onChanged);
+        this.model.removeEventListener('Changing', this._onChanging);
+        this.model.removeEventListener('Changed', this._onChanged);
         this.orion.removeEventListener('cursorActivity', this._onCursorActivity);
         this.orion.removeEventListener('focus', this._onFocus);
         this.orion.removeEventListener('blur', this._onBlur);
         this.orion.removeEventListener('Selection', this._selectionListener);
     };
 
-    function OrionDocLength (doc) {
-        return doc.getModel().getCharCount();
-    }
-
     // Converts a Orion change array (as obtained from the 'changes' event
     // in Orion v4) or single change or linked list of changes (as returned
     // by the 'change' event in Orion prior to version 4) into a
     // TextOperation and its inverse and returns them as a two-element array.
-    OrionEditorAdapter.operationFromOrionChanges = function (changes, doc, deletedText) {
+    OrionEditorAdapter.prototype.operationFromOrionChanges = function (changes, doc, deletedText) {
         // Approach: Replay the changes, beginning with the most recent one, and
         // construct the operation and its inverse. We have to convert the position
         // in the pre-change coordinate system to an index. We have a method to
@@ -381,7 +377,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         // A disadvantage of this approach is its complexity `O(n^2)` in the length
         // of the linked list of changes.
 
-        var docEndLength = OrionDocLength(doc) - changes[0].addedCharCount + changes[0].removedCharCount;
+        var docEndLength = this.model.getCharCount() - changes[0].addedCharCount + changes[0].removedCharCount;
         var operation    = new TextOperation().retain(docEndLength);
         var inverse      = new TextOperation().retain(docEndLength);
 
@@ -428,10 +424,6 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         return [operation, inverse];
     };
 
-    // Singular form for backwards compatibility.
-    OrionEditorAdapter.operationFromOrionChange =
-        OrionEditorAdapter.operationFromOrionChanges;
-
     /**
      *  Apply an operation to a Orion instance.
      * 
@@ -444,7 +436,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
         var ops = operation.ops;
         var index = 0; // holds the current index into Orion's content
         var oldLine = this.myLine; // Track the current line before this operation
-        var docLength = this.orion.getModel().getCharCount(); // Track the doc length and verify it at the end
+        var docLength = this.model.getCharCount(); // Track the doc length and verify it at the end
         for (var i = 0, l = ops.length; i < l; i++) {
             var op = ops[i];
             if (TextOperation.isRetain(op)) {
@@ -453,7 +445,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
                     throw new Error('Invalid retain.');
                 }
             } else if (TextOperation.isInsert(op)) {
-                orion.setText(op, index, i < (ops.length - 1) ? index : undefined);
+                this.model.setText(op, index, i < (ops.length - 1) ? index : undefined);
                 index += op.length;
                 docLength += op.length;
                 this.requestInputChangedEvent();
@@ -464,7 +456,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
                 if (to < 0) {
                     throw new Error('Invalid deletion');
                 }
-                orion.setText('', from, to);
+                this.model.setText('', from, to);
                 this.requestInputChangedEvent();
             }
         }
@@ -510,7 +502,7 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
     OrionEditorAdapter.prototype.onChanged = function (change) {
         this.changeInProgress = true;
         if (!this.ignoreNextChange) {
-            var pair = OrionEditorAdapter.operationFromOrionChanges([change], this.orion, this.deleteContent);
+            var pair = this.operationFromOrionChanges([change], this.orion, this.deleteContent);
             this.trigger('change', pair[0], pair[1]);
         }
         this.deleteContent = "";
@@ -568,9 +560,9 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
 
     OrionEditorAdapter.prototype.selectionListener = function(e) {
         var offset = e.newValue.start;
-        var currLine = this.editor.getLineAtOffset(offset);
-        var lastLine = this.editor.getModel().getLineCount()-1;
-        var lineStartOffset = this.editor.getLineStart(currLine);
+        var currLine = this.model.getLineAtOffset(offset);
+        var lastLine = this.model.getLineCount()-1;
+        var lineStartOffset = this.model.getLineStart(currLine);
 
         if (offset) {
             //decide whether or not it is worth sending (if line has changed or needs updating).
