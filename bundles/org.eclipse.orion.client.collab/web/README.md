@@ -115,6 +115,7 @@ This requires that the Orion server (orion.conf) and WebSocket server (config fi
 	TODO: 
     1. The socket server should send the decoded user to the orion server in order to ensure that the user is allowed to the particular project they are trying to access.
     2. Test for all authentication flows (github, google, etc.) 
+    3. Let jwt be stored in httpOnly cookie instead of localStorage for security reason. This requires the ws server to run under the same domain as the orion server. The ws server can get the authentication token from the cookie in the ws handshake request. As a side effect, this also simplifies the authentication steps because the ws connection got authnticated as soon as the connection is established.
 
 ### Setting up Collab mode
 1. Ensure the jwt secret is the same on both Orion and the WS Server.
