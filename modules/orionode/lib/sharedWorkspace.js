@@ -15,16 +15,51 @@ var tree = require('./shared/tree');
 var sharedUtil = require('./shared/sharedUtil');
 var sharedDecorator = require('./shared/sharedDecorator').sharedDecorator;
 
-module.exports = function(options) {
-	var fileRoot = options.fileRoot;
-	if (!fileRoot) { throw new Error('options.root path required'); }
+module.exports.router = function(options, extraOptions) {
+
+	/**
+	 * This method ensures that the websocket trying to retrieve and save content is authenticated.
+	 * We allow two different authentication methods: JWT for the collab server and user token for users.
+	 */
+	function checkCollabAuthenticated(req, res, next) {
+		if (req.user) {
+			req.user.workspaceDir = options.workspaceDir + (req.user.workspace ? "/" + req.user.workspace : "");
+			next();
+		} else if (req.headers['authorization'] && checkCollabServerToken(req.headers['authorization'])){
+			next();
+		} else {
+			res.writeHead(401, "Not authenticated");
+			res.end();
+		}
+	}
+
+	/**
+	 * Check the JWT token for collab server
+	 */
+	function checkCollabServerToken(authorization) {
+		if (authorization.substr(0, 7) !== "Bearer ") {
+			return false;
+		}
+		try {
+			var decoded = jwt.verify(authorization.substr(7), options.configParams["orion.jwt.secret"]);
+			return true;
+		} catch (ex) {
+			return false;
+		}
+	}
+
+	extraOptions.options = options;
+	var contextPath = options && options.configParams["orion.context.path"] || "";
+	var fileRoot = extraOptions.fileRoot;
+	if (!fileRoot) { throw new Error('extraOptions.root path required'); }
+	extraOptions.fileRoot = contextPath + fileRoot;
 	
 	var router = express.Router();
 
-	router.use("/tree", tree.router(options));
-	router.use("/project", require('./shared/db/sharedProjects')(options));
-	router.use("/user", require('./shared/db/userProjects')(options));
+	router.use("/tree", tree.router(extraOptions));
+	router.use("/project", require('./shared/db/sharedProjects')(extraOptions));
+	router.use("/user", require('./shared/db/userProjects')(extraOptions));
 	fileUtil.addDecorator(sharedDecorator);
-	sharedUtil(options);
-	return router;
+	sharedUtil(extraOptions);
+	return [checkCollabAuthenticated, router];
 }
