@@ -37,8 +37,8 @@ module.exports.router = function(options) {
 	.get('/load/:hubId/*', loadFile)
 	.put('/save/:hubId/*', saveFile)
 	.get('/session/:hubId', checkSession)
-	.get('/export*', getXfer)
-	.post('/import*', postImportXfer);
+	.get('/xfer/export*', getXfer)
+	.post('/xfer/import*', postImportXfer);
 
 	/**
 	 * Get shared projects for the user.
@@ -336,7 +336,7 @@ module.exports.router = function(options) {
 			return writeError(400, res, "Export is not a zip");
 		}
 		
-		filePath = fileUtil.safeFilePath(workspaceDir, filePath.replace(/.zip$/, ""));
+		filePath = fileUtil.safeFilePath(workspaceRoot, filePath.replace(/.zip$/, ""));
 		xfer.getXferFrom(req, res, filePath);
 	}
 
@@ -345,7 +345,7 @@ module.exports.router = function(options) {
 	 */
 	function postImportXfer(req, res) {
 		var filePath = req.params["0"];
-		filePath = fileUtil.safeFilePath(workspaceDir, filePath);
+		filePath = fileUtil.safeFilePath(workspaceRoot, filePath);
 		xfer.postImportXferTo(req, res, filePath);
 	}
 };

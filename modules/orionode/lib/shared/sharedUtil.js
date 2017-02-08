@@ -72,7 +72,7 @@ module.exports = function(options) {
         if (typeof addNameToLoc == 'undefined' || addNameToLoc) {
             location += "/" + name;
         }
-        return {
+        var result = {
             Name: name,
             LocalTimeStamp: timestamp,
             Directory: dir,
@@ -84,6 +84,9 @@ module.exports = function(options) {
                 ReadOnly: false
             }
         };
+        result.ImportLocation = result.Location.replace(/\/sharedWorkspace\/tree\/file/, "/sharedWorkspace/tree/xfer/import").replace(/\/$/, "");
+        result.ExportLocation = result.Location.replace(/\/sharedWorkspace\/tree\/file/, "/sharedWorkspace/tree/xfer/export").replace(/\/$/, "") + ".zip";
+        return result;
     }
 
     /**
