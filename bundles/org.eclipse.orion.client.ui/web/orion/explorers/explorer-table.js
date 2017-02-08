@@ -426,9 +426,7 @@ define([
 		},
 
 		onModelCreate: function(modelEvent) {
-			// We don't want file changes disturbe the user's current workflow,
-			// so here disables forceExpand
-			return this.changedItem(modelEvent.parent, false);
+			return this.changedItem(modelEvent.parent, true);
 		},
 		onModelCopy: function(modelEvent) {
 			var ex = this,
@@ -439,7 +437,7 @@ define([
 				changedLocations[itemParent.Location] = itemParent;
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], false);
+				return ex.changedItem(changedLocations[loc], true);
 			}));
 		},
 		onModelMove: function(modelEvent) {
@@ -476,7 +474,7 @@ define([
 				}
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], false);
+				return ex.changedItem(changedLocations[loc], true);
 			}));
 		},
 		onModelDelete: function(modelEvent) {
@@ -508,7 +506,7 @@ define([
 				}
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], false);
+				return ex.changedItem(changedLocations[loc], true);
 			}));
 		},
 
