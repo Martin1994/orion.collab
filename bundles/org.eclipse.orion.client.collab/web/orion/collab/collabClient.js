@@ -444,13 +444,22 @@ define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/ot
 			this.ignoreNextFileOperation = false;
 		},
 
+		/**
+		 * Make a event for FileClient by data received from peers. The event
+		 * That this method made also prevent UI changes (e.g. expanding the
+		 * file tree).
+		 * 
+		 * @param {stirng} operation
+		 * @param {Array} data
+		 */
 		makeFileClientEvent: function(operation, data) {
 			/**
 			** we can't trigger the event directly since the user might be on a seperate file system.
 			*/
 			data = data[0];
 			var evt = {
-				type: "Changed"
+				type: 'Changed',
+				silent: true
 			};
 
 			var evtData = {'select': false};

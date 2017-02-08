@@ -357,7 +357,8 @@ define([
 					type: "create",
 					select: createdItem.eventData ? createdItem.eventData.select : false,
 					newValue: createdItem.result,
-					parent: this._getUIModel(createdItem.parent)
+					parent: this._getUIModel(createdItem.parent),
+					silent: evt.silent
 				};
 			}.bind(this));
 			return this.onModelCreate(items[0]).then(function( /*result*/ ) {
@@ -372,7 +373,8 @@ define([
 				return {
 					oldValue: uiModel,
 					newValue: null,
-					parent: uiModel ? uiModel.parent : null
+					parent: uiModel ? uiModel.parent : null,
+					silent: evt.silent
 				};
 			}.bind(this));
 			var newEvent = {
@@ -389,7 +391,8 @@ define([
 				return {
 					oldValue: this._getUIModel(movedItem.source),
 					newValue: movedItem.result,
-					parent: this._getUIModel(movedItem.target)
+					parent: this._getUIModel(movedItem.target),
+					silent: evt.silent
 				};
 			}.bind(this));
 			var newEvent = {
@@ -426,7 +429,7 @@ define([
 		},
 
 		onModelCreate: function(modelEvent) {
-			return this.changedItem(modelEvent.parent, true);
+			return this.changedItem(modelEvent.parent, !modelEvent.silent);
 		},
 		onModelCopy: function(modelEvent) {
 			var ex = this,
@@ -437,7 +440,7 @@ define([
 				changedLocations[itemParent.Location] = itemParent;
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], true);
+				return ex.changedItem(changedLocations[loc], !modelEvent.silent);
 			}));
 		},
 		onModelMove: function(modelEvent) {
@@ -474,7 +477,7 @@ define([
 				}
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], true);
+				return ex.changedItem(changedLocations[loc], !modelEvent.silent);
 			}));
 		},
 		onModelDelete: function(modelEvent) {
@@ -506,7 +509,7 @@ define([
 				}
 			});
 			return Deferred.all(Object.keys(changedLocations).map(function(loc) {
-				return ex.changedItem(changedLocations[loc], true);
+				return ex.changedItem(changedLocations[loc], !modelEvent.silent);
 			}));
 		},
 
