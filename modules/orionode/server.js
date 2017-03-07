@@ -21,7 +21,8 @@ var auth = require('./lib/middleware/auth'),
 	util = require('util'),
 	argslib = require('./lib/args'),
 	ttyShell = require('./lib/tty_shell'),
-	orion = require('./index.js');
+	orion = require('./index.js'),
+	debugServer = require('../orionode.debug.server');
 
 // Get the arguments, the workspace directory, and the password file (if configured), then launch the server
 var args = argslib.parseArgs(process.argv);
@@ -87,13 +88,14 @@ function startServer(cb) {
 			}
 			
 			app.use(compression());
+			var io = socketio.listen(server, { 'log level': 1, path: (listenContextPath ? contextPath : '' ) + '/socket.io' });
+			ttyShell.install({ io: io, app: app, fileRoot: contextPath + '/file', workspaceDir: workspaceDir });
+			debugServer.install({ io: io, app: app, fileRoot: contextPath + '/file', workspaceDir: workspaceDir, listenPath: (listenContextPath ? contextPath : '') });
 			app.use(listenContextPath ? contextPath : "/", function(req,res,next){ req.contextPath = contextPath; next();},orion({
 				workspaceDir: workspaceDir,
 				configParams: configParams,
 				maxAge: dev ? 0 : undefined,
 			}));
-			var io = socketio.listen(server, { 'log level': 1, path: (listenContextPath ? contextPath : '' ) + '/socket.io' });
-			ttyShell.install({ io: io, app: app, fileRoot: contextPath + '/file', workspaceDir: workspaceDir });
 
 			server.on('listening', function() {
 				configParams.port = port;

@@ -10,8 +10,8 @@
  ******************************************************************************/
 /*eslint-env browser, amd*/
 
-define(['orion/Deferred', 'orion/widgets/projects/RunBar'],
-function(Deferred, mRunBar){
+define(['orion/Deferred', 'orion/widgets/projects/RunBar', 'orion/widgets/projects/NativeRunBar'],
+function(Deferred, mRunBar, mNativeRunBar){
 	
 	function createRunBar(options) {
 		var runBarDeferred = new Deferred();
@@ -19,6 +19,11 @@ function(Deferred, mRunBar){
 		runBarDeferred.resolve(runBar);
 		return runBarDeferred;
 	}
+	
+	// function createRunBar(options) {
+	// 	var runBar = new mNativeRunBar.RunBar(options);
+	// 	return runBar.init();
+	// }
 	
 	return {
 		createRunBar: createRunBar

@@ -667,7 +667,7 @@ define(['require', 'i18n!orion/navigate/nls/messages', 'orion/webui/littlelib', 
 				},
 				visibleWhen: function(items) {
 					var item = forceSingleItem(items);
-					return item.ServiceId && item.Name && item.status && (start ? true /*item.status.State==="STOPPED"*/ : item.status.State==="STARTED");
+					return item.ServiceId && item.Name && item.status && (start ? true /*item.status.State==="STOPPED"*/ : (item.status.State === "STARTED" || item.status.State === "PAUSED"));
 				}
 			});
 			commandService.addCommand(stopApplicationCommand);
