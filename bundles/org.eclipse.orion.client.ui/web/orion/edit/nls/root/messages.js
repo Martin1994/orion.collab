@@ -92,6 +92,7 @@ define({
 	"UnnamedCommand": "Unnamed",
 	"searchInFolder": "Folder Search...",
 	"Global Search": "Search...",
+	"Show Debug": "Debug...",
 	"ClickEditLabel": "Click to edit",
 	"ProjectInfo": "Project Information",
 	"Name": "Name",

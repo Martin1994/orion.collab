@@ -1,0 +1,48 @@
+/*******************************************************************************
+ * Copyright (c) 2017 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials are made 
+ * available under the terms of the Eclipse Public License v1.0 
+ * (http://www.eclipse.org/legal/epl-v10.html), and the Eclipse Distribution 
+ * License v1.0 (http://www.eclipse.org/org/documents/edl-v10.html). 
+ *
+ * Contributors:
+ *	 IBM Corporation - initial API and implementation
+ *******************************************************************************/
+
+'use strict';
+
+/**
+ * Logger service
+ * @class {Logger}
+ * 
+ * @param {Object} config - global config
+ */
+var Logger = function(config) {
+    this.config = config;
+};
+
+/**
+ * Log a message
+ * @param {string} message
+ * @param {Logger.MessageType} type
+ */
+Logger.prototype.log = function(message, type) {
+    // log in any case for now
+    console.log(message);
+};
+
+/**
+ * Message type
+ * @readonly
+ * @enum {number}
+ * @name {Logger.MessageType}
+ */
+var MessageType = {
+    NORMAL: 0,
+    INITIALIZATION: 1,
+    ERROR: 2,
+    VERBOSE: 65536
+};
+
+module.exports = new Logger();
+module.exports.MessageType = MessageType;

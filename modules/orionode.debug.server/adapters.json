@@ -1,0 +1,6 @@
+{
+    "node-debug": "https://github.com/Microsoft/vscode-node-debug.git",
+    "python": "https://github.com/DonJayamanne/pythonVSCode.git",
+    "vscode-lldb": "https://github.com/vadimcn/vscode-lldb.git",
+    "java": "https://github.com/DonJayamanne/javaVSCode.git"
+}

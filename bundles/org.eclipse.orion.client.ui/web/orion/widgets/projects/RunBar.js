@@ -216,13 +216,17 @@ define([
 					var dropdownMenuItemSpan = lib.$(".dropdownMenuItem", createNewItem); //$NON-NLS-0$
 					dropdownMenuItemSpan.classList.add("addNewMenuItem"); //$NON-NLS-0$
 					
-					var defaultDeployCommand = this._projectCommands.getDeployProjectCommands(this._commandRegistry)[0];
-					if (defaultDeployCommand) {
-						this._commandRegistry.registerCommandContribution(createNewItem.id, defaultDeployCommand.id, 1); //$NON-NLS-0$
+					var defaultDeployCommands = this._projectCommands.getDeployProjectCommands(this._commandRegistry);
+					if (defaultDeployCommands) {
+						for (var i = 0; i < defaultDeployCommands.length; i++) {
+							this._commandRegistry.registerCommandContribution(createNewItem.id, defaultDeployCommands[i].id, i + 1); //$NON-NLS-0$
+						}
 						domNodeWrapperList = [];
 						this._commandRegistry.renderCommands(createNewItem.id, dropdownMenuItemSpan, this._project, this, "button", null, domNodeWrapperList); //$NON-NLS-0$
-						domNodeWrapperList[0].domNode.textContent = "+"; //$NON-NLS-0$
+						domNodeWrapperList[0].domNode.textContent = "+CF"; //$NON-NLS-0$
+						domNodeWrapperList[1].domNode.textContent = "+Native"; //$NON-NLS-0$
 						this._setNodeTooltip(domNodeWrapperList[0].domNode, messages["createNewTooltip"]); //$NON-NLS-0$
+						this._setNodeTooltip(domNodeWrapperList[1].domNode, messages["createNewTooltip"]); //$NON-NLS-0$
 					}
 				}
 			}.bind(this);
@@ -502,6 +506,11 @@ define([
 						case "STOPPED": //$NON-NLS-0$
 							this._enableControl(this._playButton);
 							this._statusLight.classList.add("statusLightRed"); //$NON-NLS-0$
+							break;
+						case "PAUSED": //$NON-NLS-0$
+							this._enableControl(this._playButton);
+							this._enableControl(this._stopButton);
+							this._statusLight.classList.add("statusLightAmber"); //$NON-NLS-0$
 							break;
 						default:
 							break;
