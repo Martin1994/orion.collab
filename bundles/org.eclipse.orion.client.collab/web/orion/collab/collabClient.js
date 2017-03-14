@@ -289,17 +289,17 @@ define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/ot
 			if (this.peers[peer.id]) {
 				// Update
 				this.peers[peer.id] = peer;
-				if (this.collabHasFileAnnotation(peer.id)) {
-					var annotation = this.getCollabFileAnnotation(peer.id);
-					this.addOrUpdateCollabFileAnnotation(peer.id, annotation.location);
-				}
-				if (this.otOrionAdapter && this.textView) {
-					// Make sure we have view installed
-					this.otOrionAdapter.updateLineAnnotationStyle(peer.id);
-				}
 			} else {
 				// Add
 				this.peers[peer.id] = peer;
+			}
+			if (this.collabHasFileAnnotation(peer.id)) {
+				var annotation = this.getCollabFileAnnotation(peer.id);
+				this.addOrUpdateCollabFileAnnotation(peer.id, annotation.location);
+			}
+			if (this.otOrionAdapter && this.textView) {
+				// Make sure we have view installed
+				this.otOrionAdapter.updateLineAnnotationStyle(peer.id);
 			}
 		},
 

@@ -109,9 +109,6 @@ define(['orion/collab/collabPeer', 'orion/collab/ot', 'orion/uiUtils'], function
                 this.collabClient.editor.markClean();
                 break;
             case "selection":
-                if (msg.guid === this.collabClient.guid) {
-                    break;
-                }
                 this.trigger('selection', msg.clientId, msg.selection);
                 break;
             case "reconnect":
