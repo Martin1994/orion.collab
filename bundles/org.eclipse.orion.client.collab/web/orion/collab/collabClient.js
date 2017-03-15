@@ -140,7 +140,7 @@ define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/ot
 					self.clientDisplayedName = accountData.FullName || username;
 					var MASK = 0xFFFFFF + 1;
 					var MAGIC = 161803398 / 2 % MASK;
-					self.clientId = username + '.' + (Date.now() % MASK * MAGIC % MASK).toString(16);
+					self.clientId = username + '.' + guid.substr(0, 4);//(Date.now() % MASK * MAGIC % MASK).toString(16);
 					callback();
 				}, function(err) {
 					console.error(err);
@@ -388,12 +388,16 @@ define(['orion/collab/ot', 'orion/collab/collabFileAnnotation', 'orion/collab/ot
 			ruler = this.editor._overviewRuler;
 			ruler.addAnnotationType(AT.ANNOTATION_COLLAB_LINE_CHANGED, 1);
 			this.textView = this.editor.getTextView();
+			this.textView.addEventListener('Focus', this.viewFocusHandler = function() {
+				self.sendCurrentLocation();
+			});
 			if (this.otSocketAdapter) {
 				this.otSocketAdapter.sendInit();
 			}
 		},
 
 		viewUninstalled: function(event) {
+			this.textView.removeEventListener('Focus', this.viewFocusHandler);
 			this.textView = null;
 			this.destroyOT();
 		},
