@@ -89,7 +89,7 @@ class Document {
     joinDocument(connection, clientId, client) {
         if (!this.clients.has(connection) && client) {
             this.clients.set(connection, client);
-            client.selection = new ot.Selection.createCursor(0);
+            client.selection = null;
         }
 
         var message = {
