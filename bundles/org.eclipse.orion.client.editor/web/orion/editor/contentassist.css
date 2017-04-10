@@ -24,6 +24,11 @@
 	font-weight: normal;
 }
 
+.contentassist .proposal-strikethrough {
+	font-weight: normal;
+	text-decoration: line-through;
+}
+
 .contentassist hr{
 	border: 0;
 	height: 0;
@@ -80,6 +85,15 @@
 	margin-right: 3px;
 	text-align: center;
   	color: white;
+}
+
+.contentassist .colorTag {
+	width: 16px;
+	height: 10px;
+	border-radius: 2px;
+	vertical-align: middle;
+	margin-right: 5px;
+	display: inline-block;
 }
 
 /* TODO This class should be moved to a language specific location */

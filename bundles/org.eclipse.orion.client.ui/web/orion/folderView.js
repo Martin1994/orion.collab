@@ -175,7 +175,7 @@ define([
 		this.editorInputManager = options.inputManager;
 		this.preferences = options.preferences;
 		this.generalPrefs = new mGeneralPrefs.GeneralPreferences(this.preferences);
-		this.showProjectView = options.showProjectView === undefined ? true : options.showProjectView;
+		this.showProjectView = options.showProjectView === undefined ? !options.metadata.Projects : options.showProjectView;
 		this.showFolderNav = true;
 		this._init();
 	}
@@ -183,6 +183,7 @@ define([
 		_init: function() {
 			this.markdownView = new mMarkdownView.MarkdownView({
 				fileClient: this.fileClient,
+				preferences: this.preferences,
 				canHide: true,
 				progress: this.progress
 			});
@@ -198,6 +199,7 @@ define([
 					fileClient: this.fileClient,
 					progress: this.progress,
 					serviceRegistry: this.serviceRegistry,
+					preferences: this.preferences,
 					commandRegistry: this.commandRegistry
 				});
 			}
@@ -221,14 +223,10 @@ define([
 		},
 		displayFolderView: function(root) {
 			var children = root.Children;
-			var projectJson;
 			var readmeMd;
 			if (children) {
 				for (var i = 0; i < children.length; i++) {
 					var child = children[i];
-					if (!child.Directory && child.Name === "project.json") {
-						projectJson = child;
-					}
 					if (!child.Directory && child.Name && child.Name.toLowerCase() === "readme.md") {
 						readmeMd = child;
 					}
@@ -244,7 +242,7 @@ define([
 			function renderSections(sectionsOrder, sectionNames, filteredResources) {
 				sectionsOrder.forEach(function(sectionName) {
 					if (sectionName === "project") {
-						if (projectJson && this.showProjectView) {
+						if (this.showProjectView) {
 							div = document.createElement("div");
 							this.projectEditor.displayContents(div, this._metadata);
 							this._node.appendChild(div);
@@ -258,6 +256,7 @@ define([
 								id: "folderNavSection" + this.idCount,
 								headerClass: ["sectionTreeTableHeader"],
 								title: title,
+								preferenceService: this.preferences,
 								canHide: true
 							});
 							this.folderNavExplorer = new FolderNavExplorer({
@@ -285,7 +284,7 @@ define([
 				}.bind(this));
 			}
 
-			var sectionsOrder = ["project", "folderNav", "readme"]; //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			var sectionsOrder = ["readme", "folderNav", "project"]; //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
 			var sectionNames = {};
 			if (this.preferences) {
 				Deferred.all([this.preferences.get("/sectionsOrder"), this.generalPrefs.getPrefs()]).then(function(prefs) {

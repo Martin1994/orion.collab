@@ -14,13 +14,14 @@ var api = require('./api'),
 	fileUtil = require('./fileUtil'),
 	fs = require('fs'),
 	http = require('http'),
-	path = require('path');
+	path = require('path'),
+	log4js = require('log4js'),
+	logger = log4js.getLogger("ttyshell");
 var pty;
 try {
 	pty = require("node-pty");
 } catch (e) {
-	console.error(e.message);
-	console.error("node-pty is not installed. Some features will be unavailable.");
+	logger.info("WARNING: node-pty is not installed. Some features will be unavailable. Reason: " + e.message);
 }
 
 exports.install = function(options) {
@@ -81,12 +82,18 @@ exports.install = function(options) {
 				onStart(passedCwd);
 			}
 		});
+		
+		var disconnectSocket = function(){
+			sock.disconnect();
+			api.getOrionEE().removeListener("close-socket", disconnectSocket);
+		};
+		api.getOrionEE().on("close-socket", disconnectSocket);
 
 		function onStart(cwd) {
 			// Handle missing node-pty
 			if (!pty) {
 				var error = new Error('node-pty is not installed on this server. Terminal cannot be used.');
-				console.error(error);
+				logger.error(error);
 				sock.emit('fail', error.message);
 				return;
 			}
@@ -104,7 +111,7 @@ exports.install = function(options) {
 				var buff = [];
 				// Open Terminal Connection
 				var shell = process.platform === 'win32' ? 'powershell.exe' : (process.env.SHELL || 'sh');
-				var terminal = pty.fork(shell, [], {
+				var terminal = pty.spawn(shell, [], {
 					name: require('fs').existsSync('/usr/share/terminfo/x/xterm-256color')
 					? 'xterm-256color'
 					: 'xterm',
@@ -119,7 +126,7 @@ exports.install = function(options) {
 					: sock.emit('data', data);
 				});
 
-				console.log('Created new %s (fd: %d, pid: %d)',
+				logger.info('Created new %s (fd: %d, pid: %d)',
 					shell,
 					terminal.fd, 
 					terminal.pid);
@@ -135,13 +142,11 @@ exports.install = function(options) {
 				});
 
 				sock.on('disconnect', function() {
-					terminal.destroy()
+					terminal.destroy();
 					// termsocket = null;
 				});
 
-				terminal.on('exit', function() {
-					sock.disconnect();
-				});
+				terminal.on('exit', disconnectSocket);
 
 				while (buff.length) {
 					sock.emit('data', buff.shift());
@@ -149,7 +154,7 @@ exports.install = function(options) {
 
 				sock.emit('ready');
 			});
-		};
+		}
 	});
 };
 

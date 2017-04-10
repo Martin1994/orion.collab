@@ -154,7 +154,7 @@ module.exports = function(options) {
 	}
 
 	var router = express.Router({mergeParams: true});
-	var jsonParser = bodyParser.json();
+	var jsonParser = bodyParser.json({"limit":"10mb"});
 	router.get('*', jsonParser, function(req, res) {
 		var rest = req.params["0"].substring(1),
 			readIfExists = req.headers ? Boolean(req.headers['read-if-exists']).valueOf() : false,
@@ -165,7 +165,7 @@ module.exports = function(options) {
 			n.forEach(function(item) {
 				names[decodeURIComponent(item)] = Object.create(null);
 			});
-			return fileUtil.getProject(req.user.workspaceDir, fileRoot, filepath, names).then(function(project) {
+			return fileUtil.getProject(req.user.workspaceDir, fileRoot, filepath, {names: names}).then(function(project) {
 				return fileUtil.withStatsAndETag(project, function(error, stats, etag) {
 					if (error && error.code === 'ENOENT') {
 						res.sendStatus(204);

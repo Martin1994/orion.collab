@@ -9,6 +9,8 @@
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 /*eslint-env node*/
+var log4js = require('log4js');
+var logger = log4js.getLogger("search-worker");
 
 try {
 	var Promise = require('bluebird');
@@ -115,8 +117,9 @@ try {
 						this.searchTermWholeWord = true;
 					} else if(term.lastIndexOf("Exclude:", 0) === 0) {
 						var items = term.substring(8).split(",");
+						this.excludeFilenamePatterns = [];
 						items.forEach(function(item) {
-							this.exclude[decodeURIComponent(item)] = true;						
+							this.excludeFilenamePatterns.push(decodeURIComponent(item));						
 						}.bind(this));
 					}
 				} else if(term.indexOf(":") > -1) {
@@ -167,6 +170,18 @@ try {
 		return searchTerm;
 	}
 
+	function convertWildcardToRegex(filenamePattern){
+		if (filenamePattern.indexOf("?") !== -1 || filenamePattern.indexOf("*") !== -1) {
+			if (filenamePattern.indexOf("?") !== -1) {
+				filenamePattern = filenamePattern.replace("?", ".");
+			}
+			if (filenamePattern.indexOf("*") !== -1) {
+				filenamePattern = filenamePattern.replace("*", ".*");
+			}
+		}
+		return filenamePattern;
+	}
+
 	function buildFilenamePattern(searchOpts){
 		var filenamePatterns = searchOpts.filenamePattern;
 		//Default File Pattern
@@ -174,19 +189,24 @@ try {
 			filenamePatterns = ".*";
 		}
 		return filenamePatterns.split("/").map(function(filenamePattern) {
-			if (filenamePattern.indexOf("?") !== -1 || filenamePattern.indexOf("*") !== -1) {
-				if (filenamePattern.indexOf("?") !== -1) {
-					filenamePattern = filenamePattern.replace("?", ".");
-				}
-				if (filenamePattern.indexOf("*") !== -1) {
-					filenamePattern = filenamePattern.replace("*", ".*");
-				}
-			}
-	
+			filenamePattern = convertWildcardToRegex(filenamePattern);
 			if (!searchOpts.filenamePatternCaseSensitive) {
 				return new RegExp("^"+filenamePattern, "i");
 			}
 			return new RegExp("^"+filenamePattern);
+		});
+	}
+	
+	function buildExcludeFilenamePattern(searchOpts){
+		var excludeFilenamePatterns = searchOpts.excludeFilenamePatterns;
+		//Default File Pattern
+		if(!excludeFilenamePatterns || excludeFilenamePatterns.length === 0){
+			return null;
+		}
+		return excludeFilenamePatterns.map(function(excludeFilenamePattern) {
+			excludeFilenamePattern = excludeFilenamePattern.trim();
+			excludeFilenamePattern = convertWildcardToRegex(excludeFilenamePattern);
+			return new RegExp("^"+excludeFilenamePattern);
 		});
 	}
 
@@ -197,8 +217,10 @@ try {
 	// Note that while this function creates and returns many promises, they fulfill to undefined,
 	// and are used only for flow control.
 	// TODO clean up
-	function searchFile(contextPath, workspaceDir, dirLocation, filename, searchPattern, filenamePatterns, results, excluded) {
-		if(excluded[filename]) {
+	function searchFile(contextPath, workspaceDir, dirLocation, filename, searchPattern, filenamePatterns, results, excludeFilenamePatterns) {
+		if (excludeFilenamePatterns && excludeFilenamePatterns.some(function(excludeFilenamePattern) {
+			return filename.match(excludeFilenamePattern);
+		})){
 			return;
 		}
 		var filePath = dirLocation + filename;
@@ -206,8 +228,8 @@ try {
 		.then(function(stats) {
 			/*eslint consistent-return:0*/
 			if (stats.isDirectory()) {
-				if (filename[0] === ".") {
-					// do not search hidden dirs like .git
+				if (filename === ".git") {
+					// do not search .git no matter what
 					return;
 				}
 				if (filePath.substring(filePath.length-1) !== path.sep) {
@@ -216,7 +238,7 @@ try {
 				return fs.readdirAsync(filePath)
 				.then(function(directoryFiles) {
 					return Promise.map(directoryFiles, function(entry) {
-						return searchFile(contextPath, workspaceDir, filePath, entry, searchPattern, filenamePatterns, results, excluded);
+						return searchFile(contextPath, workspaceDir, filePath, entry, searchPattern, filenamePatterns, results, excludeFilenamePatterns);
 					}, { concurrency: SUBDIR_SEARCH_CONCURRENCY });
 				});
 			}
@@ -249,6 +271,9 @@ try {
 				}
 				add();
 			});
+		}).catch(function(err) {
+			// Probably an error reading some file or directory -- ignore
+			return;
 		});
 	}
 	
@@ -256,10 +281,11 @@ try {
 		var searchOpt = new SearchOptions(originalUrl, contextPath);
 		searchOpt.buildSearchOptions();
 
-		var searchPattern, filenamePattern;
+		var searchPattern, filenamePattern, excludeFilenamePattern;
 		try {
 			searchPattern = buildSearchPattern(searchOpt);
 			filenamePattern = buildFilenamePattern(searchOpt);
+			excludeFilenamePattern = buildExcludeFilenamePattern(searchOpt);
 		} catch (err) {
 			return Promise.reject(err);
 		}
@@ -281,11 +307,8 @@ try {
 			var results = [];
 
 			return Promise.map(children, function(child) {
-				return searchFile(contextPath, workspaceDir, searchScope, child, searchPattern, filenamePattern, results, searchOpt.exclude);
+				return searchFile(contextPath, workspaceDir, searchScope, child, searchPattern, filenamePattern, results, excludeFilenamePattern);
 			}, { concurrency: SUBDIR_SEARCH_CONCURRENCY })
-			.catch(function(/*err*/) {
-				// Probably an error reading some file or directory -- ignore
-			})
 			.then(function() {
 				return {
 					"response": {
@@ -326,5 +349,5 @@ try {
 		}.bind(this));
 	}.bind(this);
 } catch (err) {
-	console.log(err.message);
+	logger.error(err.message);
 }

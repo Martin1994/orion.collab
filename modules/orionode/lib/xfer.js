@@ -9,7 +9,7 @@
  * IBM Corporation - initial API and implementation
  *******************************************************************************/
 /*eslint-env node */
-var api = require('./api'), writeError = api.writeError;
+var api = require('./api'), writeError = api.writeError, writeResponse = api.writeResponse;
 var archiver = require('archiver');
 var unzip = require('unzip2');
 var request = require('request');
@@ -21,7 +21,8 @@ var Promise = require('bluebird');
 var mkdirp = require('mkdirp');
 var fs = Promise.promisifyAll(require('fs'));
 var fileUtil = require('./fileUtil');
-var crypto = require('crypto');
+var log4js = require('log4js');
+var logger = log4js.getLogger("xfer");
 
 function getUploadsFolder(options) {
 	if (options.options) {
@@ -43,7 +44,7 @@ module.exports = function(options) {
 	var UPLOADS_FOLDER = getUploadsFolder(options);
 	
 	mkdirp(UPLOADS_FOLDER, function (err) {
-		if (err) console.error(err);
+		if (err) logger.error(err);
 	});
 
 	return express.Router()
@@ -60,7 +61,7 @@ function reportTransferFailure(res, err) {
 	if (err.message) {
 		message += ": " + err.message;
 	}
-	return res.status(400).json({
+	return writeResponse(400, res, null, {
 				Severity: "Error",
 				HttpCode: 400,
 				Code: 0,
@@ -142,7 +143,7 @@ function excluded(excludes, rootName, outputName) {
 function completeTransfer(req, res, tempFile, filePath, fileName, xferOptions, shouldUnzip) {
 	var overwrite = xferOptions.indexOf("overwrite-older") !== -1;
 	function overrideError(files) {
-		res.status(400).json({
+		writeResponse(400, res, null, {
 			Severity: "Error",
 			HttpCode:400,
 			Code: 0,
@@ -196,12 +197,12 @@ function completeTransfer(req, res, tempFile, filePath, fileName, xferOptions, s
 		})
 		.on('error', function(error) {
 			if (res) {
-				res.status(400).json({
+				writeResponse(200, res, null, {
 					Severity: "Error",
 					HttpCode:400,
 					Code: 0,
 					Message: "Failed during file unzip: " + error.message
-				}).end();
+				});
 				res = null;
 			}
 		})

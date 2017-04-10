@@ -10,7 +10,7 @@
  *******************************************************************************/
 /*eslint-env node */
 /*eslint no-console:1*/
-var api = require('../api'), writeError = api.writeError;
+var api = require('../api'), writeError = api.writeError, writeResponse = api.writeResponse;
 var git = require('nodegit');
 var url = require("url");
 var path = require("path");
@@ -22,6 +22,7 @@ var tasks = require('../tasks');
 var express = require('express');
 var bodyParser = require('body-parser');
 var rmdir = require('rimraf');
+var credentialsProvider = require('./credentials');
 
 module.exports = {};
 
@@ -94,6 +95,10 @@ function getRepoByPath(filePath,workspaceDir) {
 		if (filePath.length <= workspaceDir) return Promise.reject(new Error("Forbidden"));
 	}
  	var ceiling = path.dirname(workspaceDir);
+	if (!fs.statSync(filePath).isDirectory()) {
+		// get the parent folder if pointing at a file
+		filePath = path.dirname(filePath);
+	}
 	return git.Repository.discover(filePath, 0, ceiling).then(function(buf) {
 		return git.Repository.open(buf.toString());
 	});
@@ -160,7 +165,7 @@ function getCommit(repo, refOrCommit) {
 
 function getClone(req, res) {
 	getClones(req, res, function(repos) {
-		res.status(200).json({
+		writeResponse(200, res, null, {
 			"Children": repos,
 			"Type": "Clone"
 		});
@@ -339,12 +344,11 @@ function postInit(req, res) {
 				return theRepo.createCommit("HEAD", author, committer, "Initial commit", oid, []);
 			})
 			.then(function() {
-				res.status(201).json({
+				writeResponse(201, res, null, {
 					"Location": gitRoot + "/clone"+  fileRoot + "/" + req.body.Name
 				});
 			})
 			.catch(function(err){
-				console.log(err);
 				writeError(403, res);
 			});
 
@@ -404,8 +408,10 @@ function putClone(req, res) {
 		} else if (tag && typeof branch === "string") {
 			return git.Reference.lookup(theRepo, "refs/tags/" + tag)
 			.then(function(reference) {
-				return theRepo.getReferenceCommit(reference);
-			}).catch(function() {
+				return reference.peel(git.Object.TYPE.COMMIT);
+			}).then(function(oid) {
+				return theRepo.getCommit(oid);
+			}).catch(function(err) {
 				return theRepo.getTagByName(tag)
 				.then(function(tag) {
 					return tag.targetId();
@@ -420,7 +426,7 @@ function putClone(req, res) {
 				theCommit = commit;
 				if (branch) {
 					return git.Branch.create(theRepo, branch, commit, 0).then(function() {
-						return theRepo.checkoutBranch(branch, checkOptions);
+						return theRepo.checkoutBranch("refs/heads/" + branch, checkOptions);
 					});
 				}
 			 	return git.Checkout.tree(theRepo, commit, checkOptions).then(function() {
@@ -428,7 +434,7 @@ function putClone(req, res) {
 				});
 			});
 		}
-		return theRepo.checkoutBranch(branch, checkOptions);
+		return theRepo.checkoutBranch("refs/heads/" + branch, checkOptions);
 	})
 	.then(function(){
 		res.status(200).end();
@@ -491,7 +497,7 @@ function foreachSubmodule(repo, operation, recursive) {
 	});
 }
 
-function getRemoteCallbacks(creds, task) {
+function getRemoteCallbacks(req, task) {
 	return {
 		certificateCheck: function() {
 			return 1; // Continues connection even if SSL certificate check fails. 
@@ -508,9 +514,7 @@ function getRemoteCallbacks(creds, task) {
 		 * @callback
 		 */
 		credentials: function(gitUrl, urlUsername) {
-			if (!creds.GitSshUsername && !creds.GitSshPrivateKey) {
-				return git.Cred.defaultNew();
-			}
+			var creds = req.body;
 			if (creds.GitSshPrivateKey) {
 				var privateKey = creds.GitSshPrivateKey;
 				var passphrase = creds.GitSshPassphrase;
@@ -521,24 +525,38 @@ function getRemoteCallbacks(creds, task) {
 					passphrase || ""
 				);
 			}
+
 			var username = creds.GitSshUsername || urlUsername;
 			var password = creds.GitSshPassword;
-			// clear username/password to avoid inifinite loop in nodegit
-			delete creds.GitSshUsername;
-			delete creds.GitSshPassword;
-			return git.Cred.userpassPlaintextNew(
-				username,
-				password || ""
-			);
+			if (username && password) {
+				/* clear username/password to avoid inifinite loop in nodegit */
+				delete creds.GitSshUsername;
+				delete creds.GitSshPassword;
+				return git.Cred.userpassPlaintextNew(
+					username,
+					password || ""
+				);
+			}
+
+			return new Promise(function(resolve, reject) {
+				credentialsProvider.getCredentials(gitUrl, req.user.username).then(
+					function(result) {
+						resolve(result);
+					},
+					function(error) {
+						resolve(git.Cred.defaultNew());
+					}
+				);
+			});
 		}
 	};
 }
 
 function handleRemoteError(task, err, cloneUrl) {
 	var fullCloneUrl;
-	if(cloneUrl.indexOf("://") !== -1){
+	if (cloneUrl.indexOf("://") !== -1){
 		fullCloneUrl = cloneUrl;
-	}else if(cloneUrl.indexOf("@") < cloneUrl.indexOf(":")){
+	} else if (cloneUrl.indexOf("@") < cloneUrl.indexOf(":")){
 		fullCloneUrl = "ssh://" + cloneUrl;
 	}
 	var u = url.parse(fullCloneUrl, true);
@@ -577,7 +595,7 @@ function getUniqueFileName(folder, file) {
 function postClone(req, res) {
 	var repo;
 	var cloneUrl = req.body.GitUrl;
-	if(cloneUrl.charAt(cloneUrl.length - 1) === "/"){
+	if (cloneUrl.charAt(cloneUrl.length - 1) === "/") {
 		cloneUrl = cloneUrl.slice(0, -1);
 	}	
 	var dirName = cloneUrl.substring(cloneUrl.lastIndexOf("/") + 1).replace(".git", "");
@@ -590,7 +608,7 @@ function postClone(req, res) {
 	
 	return git.Clone.clone(cloneUrl, getUniqueFileName(folder, dirName), {
 		fetchOpts: {
-			callbacks: getRemoteCallbacks(req.body, task)
+			callbacks: getRemoteCallbacks(req, task)
 		}
 	})
 	.then(function(_repo) {

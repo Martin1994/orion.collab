@@ -24,7 +24,10 @@ var express = require('express'),
 	nodemailer = require('nodemailer'),
 	fs = require('fs'),
 	args = require('./args'),
-	generator = require('generate-password');
+	api = require('./api'),
+	generator = require('generate-password'),
+	log4js = require('log4js'),
+	logger = log4js.getLogger("user");
 	
 var CONFIRM_MAIL = "./multitenant/EmailConfirmation.txt",
 	PWD_CONFIRM_RESET_MAIL = "./multitenant/EmailConfirmationPasswordReset.txt",
@@ -131,13 +134,13 @@ module.exports.router = function(options) {
 				};
 				transport.sendMail(mailOptions, function(error, info){
 					if (error){
-						return console.log(error + " " + info);
+						return logger.info(error + " " + info);
 					}
-					//console.log('Message sent: ' + info.response);
+					//logger.info('Message sent: ' + info.response);
 				});
 			} else {
 				// dev
-				console.log(body);
+				logger.info(body);
 			}
 		});
 	}
@@ -158,6 +161,13 @@ module.exports.router = function(options) {
 	passport.use(orionAccount.createStrategy());
 	passport.serializeUser(orionAccount.serializeUser());
 	passport.deserializeUser(orionAccount.deserializeUser());
+	
+	api.getOrionEE().on("close-server", function(){
+		logger.info("Closing User MongoDB");
+		if(mongoose && (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2)){
+			mongoose.disconnect();
+		}
+	});
 	
 	function canAddUsers() {
 		return !options.configParams["orion.auth.user.creation"];
@@ -270,7 +280,7 @@ module.exports.router = function(options) {
 				return next(err);  
 			}
 			if (!user) {
-				return res.status(401).json({error: info.message});
+				return api.writeResponse(401, res, null, {error: info.message});
 			}
 			req.logIn(user, function(err) {
 				if (err) { return next(err); }
@@ -303,7 +313,7 @@ module.exports.router = function(options) {
 			for (var i=start; i<end; i++) {
 				result.push(userJSON(users[i]));
 			}
-			return res.status(200).json({
+			return api.writeResponse(200, res, null,{
 				Users: result,
 				UsersStart: start,
 				UsersRows: rows,
@@ -319,7 +329,7 @@ module.exports.router = function(options) {
 				res.writeHead(400, "User not fount: " + req.params.id);
 				return res.end();
 			}
-			return res.status(200).json(userJSON(user));
+			return api.writeResponse(200, res, null, userJSON(user));
 		});
 	});
 
@@ -327,10 +337,11 @@ module.exports.router = function(options) {
 		orionAccount.findByUsername(req.params.id, function(err, user) {
 			if (err) return res.status(404).end();
 			if (!user) {
-				res.writeHead(400, "User not fount: " + req.params.id);
+				res.writeHead(400, "User not found: " + req.params.id);
 				return res.end();
 			}
 			var hasNewPassword = typeof req.body.Password !== "undefined";
+			var promiseChain = Promise.resolve();
 			// users other than admin have to know the old password to set a new one
 			if (!isAdmin(req.params.id)) {
 				//TODO
@@ -338,19 +349,46 @@ module.exports.router = function(options) {
 			if (typeof req.body.UserName !== "undefined") user.username = req.body.UserName;
 			if (typeof req.body.FullName !== "undefined") user.fullname = req.body.FullName;
 			if (typeof req.body.Email !== "undefined") user.email = req.body.Email;
-			if (typeof req.body.OAuth !== "undefined") user.oauth = req.body.OAuth;
+			if (typeof req.body.OAuth !== "undefined") {
+				promiseChain = promiseChain.then(function(){
+					return new Promise(function(resolve, reject){
+						orionAccount.find({oauth: new RegExp("^" + req.body.OAuth + "$", "m")}, function(err, existing) {
+							if (err) {
+								reject(err);
+								return;
+							}
+							if (existing && existing.length) {
+								res.writeHead(409, "This account is already linked to someone else");
+								res.end();
+								reject();
+								return;
+							}
+							user.oauth = req.body.OAuth;
+							resolve();
+						});
+					});
+				});
+			}
 			function save(err) {
 				if (err) res.writeHead(400, "Failed to update: " + req.params.id);
 				return res.status(200).end();
 			}
-			if (hasNewPassword) {
-				user.setPassword(req.body.Password, function(err, user) {
-					if (err) res.writeHead(400, "Failed to update: " + req.params.id);
+			promiseChain.then(function(){
+				if (hasNewPassword) {
+					user.setPassword(req.body.Password, function(err, user) {
+						if (err) res.writeHead(400, "Failed to update: " + req.params.id);
+						user.save(save);
+					});
+				} else {
 					user.save(save);
-				});
-			} else {
-				user.save(save);
-			}
+				}
+			}).catch(function(err){
+				if (err) {
+					// Indicated unhandled error
+					res.writeHead(500, "An internal error has occured");
+					res.send();
+				}
+			});
 		});
 	});
 
@@ -400,7 +438,7 @@ module.exports.router = function(options) {
 		}
 		orionAccount.register(new orionAccount({username: req.body.UserName, email: req.body.Email, fullname: req.body.FullName, oauth: req.body.identifier}), req.body.Password ,function(err, user){
 			if (err) {
-				return res.status(404).json({Message: err.message});
+				return api.writeResponse(404, res, null, {Message: err.message});
 			}
 			if (options.configParams["orion.auth.user.creation.force.email"]) {
 				sendMail({user: user, options: options, template: CONFIRM_MAIL, auth: CONFIRM_MAIL_AUTH, req: req});
@@ -412,7 +450,7 @@ module.exports.router = function(options) {
 					}
 				});
 			}
-			return res.status(201).json({error: "Created"});
+			return api.writeResponse(201, res, null, {error: "Created"});
 		});
 	});
 

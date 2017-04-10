@@ -9,7 +9,7 @@
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 /*eslint-env node */
-var api = require('../api'), writeError = api.writeError;
+var api = require('../api'), writeError = api.writeError, writeResponse = api.writeResponse;
 var path = require('path');
 var diff = require("./diff");
 var mTags = require("./tags");
@@ -100,8 +100,127 @@ function getCommitLog(req, res) {
 		if (toDateFilter && commit.timeMs() > toDateFilter) return true;
 		return false;
 	}
+	function filterCommitPath(commit, fileDir, keep, ignore) {
+		// check if this commit is from a branch that should be ignored
+		for (var i = 0; i < ignore.length; i++) {
+			if (ignore[i].equal(commit.id())) {
+				for (var j = 0; j < commit.parentcount(); j++) {
+					// check if this parent should be skipped or iterated over
+					var shouldKeep = keep.some(function(oid) {
+						return oid.equal(commit.parentId(j));
+					});
+					if (!shouldKeep) {
+						ignore.push(commit.parentId(j));
+					}
+				}
+				return Promise.resolve(true);
+			}
+		}
+
+		var entryId;
+		return commit.getEntry(filterPath)
+		.then(function(entry) {
+			entryId = entry.id();
+			switch (commit.parentcount()) {
+				case 0:
+					// no parent then it was an ADD
+					return false;
+				case 1:
+					return commit.getParents(1)
+					.then(function(parents) {
+						return parents[0].getEntry(filterPath);
+					})
+					.then(function(parentEntry) {
+						// check if the file content changed
+						return entryId.equal(parentEntry.id()) !== 0;
+					})
+					.catch(function(err) {
+						if (err.toString().indexOf("does not exist in the given tree") !== -1) {
+							// not found in parent, was an ADD
+							return false;
+						}
+						throw err;
+					});
+				default:
+					var parentOids = [];
+					for (var i = 0; i < commit.parentcount(); i++) {
+						parentOids.push(commit.parentId(i));
+					}
+					var parents;
+					return commit.getParents(commit.parentcount())
+					.then(function(_parents) {
+						parents = _parents;
+						// for every parent, check if the entry exists
+						var promises = parents.map(function(parent) {
+							return parent.getEntry(filterPath).catch(function(err) {
+								if (err.toString().indexOf("does not exist in the given tree") !== -1) {
+									return null;
+								}
+								throw err;
+							});
+						});
+						return Promise.all(promises)
+					})
+					.then(function(entries) {
+						// find the common ancestor amongst the parents
+						return resolveAncestor(parentOids)
+						.then(function(base) {
+							for (var i = 0; i < entries.length; i++) {
+								if (entries[i] !== null && entries[i].id().equal(entryId)) {
+									// if the entry id is the same as a parent, that means
+									// the content from the other branches should be ignored
+									for (var j = 0; j < entries.length; j++) {
+										if (i !== j) {
+											ignore.push(parents[j].id());
+										}
+									}
+									// mark the common ancestor as not to be skipped over
+									keep.push(base);
+									return true;
+								}
+							}
+							return  false;
+						});
+					});
+			}
+		})
+		.catch(function(err) {
+			if (err.toString().indexOf("does not exist in the given tree") !== -1) {
+				// doesn't exist, check if it was deleted
+				if (commit.parentcount() === 0) {
+					// no parent then definitely doesn't exist
+					return true;
+				}
+
+				return commit.getParents(1)
+				.then(function(parents) {
+					return parents[0].getEntry(filterPath);
+				})
+				.then(function(parentEntry) {
+					// if parent entry exists then the entry was deleted
+					return false;
+				})
+				.catch(function(err) {
+					return true;
+				});
+			}
+			throw err;
+		});
+	}
+	function resolveAncestor(parents) {
+		var tree = parents.pop();
+		var tree2 = parents.pop();
+		return git.Merge.base(repo, tree, tree2).then(function(base) {
+			if (parents.length === 0) {
+				return base;
+			} else {
+				parents.push(base);
+				return resolveAncestor(parents);
+			}
+		});
+	}
 	var commits = []	, repo;
-	function writeResponse(over) {
+	function sendResponse(over) {
 		var refs = scope.split("..");
 		var toRef, fromRef; 
 		if(refs.length === 1){
@@ -233,44 +352,87 @@ function getCommitLog(req, res) {
 		}
 
 		setupRevWalk(function() {
-			if (filterPath) {
-				fileHistoryWalk();
-			} else {
-				walk();
-			}
+			walk();
 		});
 
 		var count = 0;
+		var keep = [];
+		var ignore = [];
+		var commitJSONs = {};
 		filterPath = clone.getfileRelativePath(repo,req); 
 		function walk() {
 			return revWalk.next()
 			.then(function(oid) {
 				if (!oid) {
-					writeResponse(true);
+					sendResponse(true);
 					return;
 				}
 				return repo.getCommit(oid)
 				.then(function(commit) {
-					function applyFilter() {
-						if (filterCommit(commit) || page && count++ < skipCount) {//skip pages
+					function applyFilter(filter) {
+						if (filter || filterCommit(commit) || page && count++ < skipCount) {//skip pages
+							var keys = Object.keys(commitJSONs);
+							for (var i = 0 ; i < keys.length; i++) {
+								for (var j = 0; j < commitJSONs[keys[i]].Parents.length; j++) {
+									if (commitJSONs[keys[i]].Parents[j].Name === commit.sha() && commit.parentcount() !== 0) {
+										commitJSONs[keys[i]].Parents[j] = createParentJSON(commit.parentId(0).toString(), fileDir);
+										return walk();
+									}
+								}
+							}
 							return walk();
 						}
 						return Promise.all([getDiff(repo, commit, fileDir), getCommitParents(repo, commit, fileDir)])
 						.then(function(stuff) {
-							commits.push(commitJSON(commit, fileDir, stuff[0], stuff[1]));
+							var json = commitJSON(commit, fileDir, stuff[0], stuff[1]);
+							commitJSONs[commit.sha()] = json;
+							commits.push(json);
 							if (pageSize && commits.length === pageSize) {//page done
-								writeResponse();
+								if (filterPath) {
+									var missing = [];
+									// look for commits that are pointing at a parent that
+									// doesn't exist in the list of returned commits
+									var keys = Object.keys(commitJSONs);
+									for (var i = 0 ; i < keys.length; i++) {
+										for (var j = 0; j < commitJSONs[keys[i]].Parents.length; j++) {
+											var name = commitJSONs[keys[i]].Parents[j].Name;
+											if (commitJSONs[name] === undefined) {
+												// pointing at a commit that hasn't been resolved, mark it
+												missing.push(name);
+											}
+										}
+									}
+
+									if (missing.length === 0) {
+										sendResponse();
+									} else {
+										// resolve the parents so we actually have the JSON point
+										// at the true parent commit related to the file
+										var current = missing[0];
+										revWalk = repo.createRevWalk();
+										revWalk.sorting(git.Revwalk.SORT.TOPOLOGICAL);
+										revWalk.push(missing[0]);
+										resolveParents(missing, keep, ignore);
+									}
+								} else {
+									sendResponse();
+								}
 								return;
 							}
 							walk();
 						});
 					}
-					applyFilter();
+
+					if (filterPath) {
+						return filterCommitPath(commit, fileDir, keep, ignore).then(applyFilter);
+					} else {
+						return applyFilter(false);
+					}
 				});
 			})
 			.catch(function(error) {
 				if (error.errno === git.Error.CODE.ITEROVER) {
-					writeResponse(true);
+					sendResponse(true);
 				} else {
 					task.done({
 						HttpCode: 404,
@@ -284,71 +446,60 @@ function getCommitLog(req, res) {
 			});
 		}
 
-		function fileHistoryWalk() {
-			revWalk.getCommitsUntil(function(commit) {
-				// iterate through the entire history until we have no more commits
-				var parentId = commit.parentId(0);
-				return parentId !== null && parentId !== undefined;
-			}).then(function(array) {
-				setupRevWalk(function() {
-					// run a full history walk on the desired file
-					revWalk.fileHistoryWalk(filterPath, array.length).then(function(fileCommits) {
-						// client trying to skip more commits than that which affects the specified file,
-						// respond that we're done and there is nothing left
-						if (skipCount >= fileCommits.length) {
-							writeResponse(true);
-							return;
+		function resolveParents(missing, keep, ignore) {
+			var candidate;
+			return revWalk.next().then(function(oid) {
+				return repo.getCommit(oid);
+			})
+			.then(function(commit) {
+				candidate = commit;
+				return filterCommitPath(commit, fileDir, keep, ignore);
+			})
+			.then(function(filter) {
+				if (filter) {
+					// have to filter this commit, keep going
+					return resolveParents(missing, keep, ignore);
+				} else {
+					// this commit is not being filtered, update the parent information
+					var keys = Object.keys(commitJSONs);
+					for (var i = 0 ; i < keys.length; i++) {
+						for (var j = 0; j < commitJSONs[keys[i]].Parents.length; j++) {
+							if (commitJSONs[keys[i]].Parents[j].Name === missing[0]) {
+								commitJSONs[keys[i]].Parents[j] = createParentJSON(candidate.sha(), fileDir);
+							}
 						}
+					}
 
-						// remove the elements that need to be skipped over
-						fileCommits.splice(0, skipCount);
-						var done = true;
-						if (fileCommits.length > pageSize) {
-							// we have more commits than the page size, we won't be done
-							done = false;
-							// remove the extra commits as they don't need to be processed
-							fileCommits.splice(pageSize, fileCommits.length - pageSize);
-						}
-						var fullCommits = [];
-						function getFullCommits(fileCommits, idx) {
-							repo.getCommit(fileCommits[idx].commit.id()).then(function(c) {
-								fullCommits.push(c);
-
-								// when we've retrieved everything, iterate over them
-								if (fullCommits.length === fileCommits.length) {
-									processCommits(fullCommits, 0);	
-								} else {
-									// get the full commit of the next commit
-									getFullCommits(fileCommits, idx + 1);
-								}
-							});
-						}
-						// the commit objects from fileHistoryWalk(*) fail on getTree()
-						// which prevents us from grabbing a diff,
-						// grab a full commit from the repo using the oid
-						getFullCommits(fileCommits, 0);
-
-						function processCommits(fullCommits, idx) {
-							var commit = fullCommits[idx];
-							return Promise.all(
-								[ getDiff(repo, commit, fileDir), getCommitParents(repo, commit, fileDir) ]
-							).then(function(stuff) {
-								commits.push(commitJSON(commit, fileDir, stuff[0], stuff[1]));
-								if (idx === fullCommits.length - 1) {
-									// we're at the end, stop iterating
-									// and write the response
-									writeResponse(done);
-									return;
-								}
-								processCommits(fullCommits, idx + 1);
-							});
-						}
+					// remove the resolved commit
+					missing.shift();
+					if (missing.length === 0) {
+						sendResponse();
+					} else {
+						// still more to go, resolve the next one
+						revWalk = repo.createRevWalk();
+						revWalk.sorting(git.Revwalk.SORT.TOPOLOGICAL);
+						revWalk.push(missing[0]);
+						return resolveParents(missing, keep, ignore);
+					}
+				}
+			})
+			.catch(function(error) {
+				if (error.errno === git.Error.CODE.ITEROVER) {
+					sendResponse(true);
+				} else {
+					task.done({
+						HttpCode: 404,
+						Code: 0,
+						DetailedMessage: error.message,
+						JsonData: {},
+						Message: error.message,
+						Severity: "Error"
 					});
-				});
+				}
 			});
 		}
 	}
-	
+
 	clone.getRepo(req)
 	.then(function(_repo) {
 		repo = _repo;
@@ -390,7 +541,7 @@ function getCommitLog(req, res) {
 				if(mergeBaseCommitOid){
 					log(repo, mergeBaseCommitOid.tostrS());
 				} else {
-					writeResponse(true);
+					sendResponse(true);
 				}
 			});
 		} else {
@@ -420,12 +571,16 @@ function getCommitParents(repo, commit, fileDir) {
 	return commit.getParents()
 	.then(function(parents) {
 		return parents.map(function(parent) {
-			return {
-				"Location": gitRoot + "/commit/" + parent.sha() + fileDir,
-				"Name": parent.sha()
-			};
+			return createParentJSON(parent.sha(), fileDir);
 		});
 	});
+}
+
+function createParentJSON(sha, fileDir) {
+	return {
+		"Location": gitRoot + "/commit/" + sha + fileDir,
+		"Name": sha
+	};
 }
 
 function getCommitRefs(repo, fileDir, commits) {
@@ -558,9 +713,7 @@ function getCommitBody(req, res) {
 	})
 	.then(function(blob) {
 		var resp = blob.toString();
-		res.setHeader('Content-Type', 'application/octect-stream');
-		res.setHeader('Content-Length', resp.length);
-		res.status(200).end(resp);
+		writeResponse(200, res, {'Content-Type':'application/octect-stream','Content-Length': resp.length}, resp, null, true);
 	}).catch(function(err) {
 		writeError(404, res, err.message);
 	});
@@ -572,7 +725,7 @@ function identifyNewCommitResource(req, res, newCommit) {
 	var contextPathSegCount = req.contextPath.split("/").length - 1;
 	segments[3 + contextPathSegCount] = segments[3 + contextPathSegCount] + ".." + util.encodeURIComponent(newCommit);
 	var location = url.format({pathname: segments.join("/"), query: originalUrl.query});
-	res.status(200).json({
+	writeResponse(200, res, null, {
 		"Location": location
 	});
 }
@@ -598,7 +751,7 @@ function revert(req, res, commitToRevert) {
 		return theRepo.stateCleanup();
 	})
 	.then(function() {
-		res.status(200).json({
+		writeResponse(200, res, null, {
 			"Result": theRC ? "FAILURE" : "OK"
 		});
 	})
@@ -639,7 +792,7 @@ function cherryPick(req, res, commitToCherrypick) {
 		return git.Reference.nameToId(theRepo, "HEAD");
 	})
 	.then(function(newHead) {
-		res.status(200).json({
+		writeResponse(200, res, null, {
 			"Result": theRC ? "FAILED" : "OK",
 			"HeadUpdated": !theRC && theHead !== newHead
 		});
@@ -651,7 +804,7 @@ function cherryPick(req, res, commitToCherrypick) {
 	})
 	.catch(function(err) {
 		if(err.message.indexOf("Cannot create a tree") !== -1){
-			res.status(200).json({
+			writeResponse(200, res, null, {
 				"HeadUpdated": true,
 				"Result": "CONFLICTING"
 			});
@@ -701,7 +854,26 @@ function rebase(req, res, commitToRebase, rebaseOperation) {
 				break;
 				
 			case "SKIP":
-				throw new Error("Not implemented yet");
+				return git.Checkout.head(repo, {
+					checkoutStrategy:
+						git.Checkout.STRATEGY.FORCE |
+						git.Checkout.STRATEGY.RECREATE_MISSING |
+						git.Checkout.STRATEGY.REMOVE_UNTRACKED
+				})
+				.then(function() {
+					return git.Rebase.open(repo, {});
+				}).then(function(rebase) {
+					if (rebase.operationCurrent() === rebase.operationEntrycount() - 1) {
+						// if skipping the last operation, then we're done here
+						rebase.finish(repo.defaultSignature());
+						// return the commit that we're currently on
+						return head;
+					}
+					// move to the next one and continue
+					return rebase.next().then(function(rebaseOperation) {
+						return repo.continueRebase();
+					});
+				});
 				
 			default:
 				work = repo.rebaseBranches("HEAD", commitToRebase, null, null, null);
@@ -739,7 +911,7 @@ function rebase(req, res, commitToRebase, rebaseOperation) {
 		} else if (rebaseOperation === "ABORT") {
 			rebaseResult = "ABORTED";
 		}
-		res.status(200).json({
+		writeResponse(200, res, null, {
 			"Result": rebaseResult
 		});
 	})
@@ -764,8 +936,53 @@ function merge(req, res, branchToMerge, squash) {
 	.then(function(_commit) {
 		commit = _commit;
 		if (squash) {
-			throw new Error("Not implemented yet");
+			// find a common ancestor
+			return git.Merge.base(repo, head, commit.id()).then(function(base) {
+				// the common ancestor is the commit we're trying to merge
+				if (base.equal(commit.id())) {
+					// already up-to-date, nothing to do
+					oid = head;
+					return;
+				}
+
+				var mergeIndex;
+				// try to merge
+				return git.Merge.commits(repo, head, commit)
+				.then(function(index) {
+					mergeIndex = index;
+					return repo.getStatus();
+				})
+				.then(function(statuses) {
+					paths = {};
+					// see what's in the index/wd
+					statuses = statuses.map(function(status) {
+						return status.path();
+					});
+					// compare it with what's in the index
+					var entries = mergeIndex.entries();
+					entries.forEach(function(entry) {
+						if (statuses.indexOf(entry.path) !== -1) {
+							paths[entry.path] = "";
+						}
+					});
+					// no conflicts, then we're fine
+					if (Object.keys(paths).length === 0) {
+						// common ancestor is HEAD, fast-forward
+						if (base.equal(head.id())) {
+							oid = commit.id();
+						}
+
+						conflicting = mergeIndex.hasConflicts();
+						paths = undefined;
+						// checkout the merged index
+						return git.Checkout.index(repo, mergeIndex, {
+							checkoutStrategy: git.Checkout.STRATEGY.FORCE
+						});
+					}
+				});
+			});
 		}
+
 		return repo.mergeBranches("HEAD", branchToMerge)
 		.then(function(_oid) {
 			oid = _oid;
@@ -789,11 +1006,17 @@ function merge(req, res, branchToMerge, squash) {
 		});
 	})
 	.then(function() {
-		var mergeResult = "MERGED";
-		if (oid && oid.toString() === head.id().toString()) mergeResult = "ALREADY_UP_TO_DATE";
-		else if (oid && oid.toString() === commit.id().toString()) mergeResult = "FAST_FORWARD";
-		else if (conflicting) mergeResult = "CONFLICTING";
-		res.status(200).json({
+		var mergeResult = squash ? "MERGED_SQUASHED" : "MERGED";
+		if (oid && oid.toString() === head.id().toString()) {
+			mergeResult = "ALREADY_UP_TO_DATE";
+		} else if (oid && oid.toString() === commit.id().toString()) {
+			mergeResult = squash ? "FAST_FORWARD_SQUASHED" : "FAST_FORWARD";
+		} else if (paths) {
+			mergeResult = "FAILED";
+		} else if (conflicting) {
+			mergeResult = "CONFLICTING";
+		}
+		writeResponse(200, res, null, {
 			"Result": mergeResult,
 			"FailingPaths": paths
 		});
@@ -810,7 +1033,7 @@ function getConflictingPaths(repo, head, commit) {
 	.then(function(tree) {
 		tree2 = tree;
 		// get the common ancestor between HEAD and the other branch
-		return Merge.base(repo, head, commit)
+		return git.Merge.base(repo, head, commit)
 		.then(function(ancestor) {
 			return ancestor.getTree();
 		})
@@ -955,7 +1178,7 @@ function tag(req, res, commitId, name, isAnnotated, message) {
 		writeError(403, res, err.message);
 	})
 	.done(function() {
-		res.status(200).json(commitJSON(thisCommit, fileDir, theDiffs, theParents));
+		writeResponse(200, res, null, commitJSON(thisCommit, fileDir, theDiffs, theParents));
 	});
 }
 
@@ -1026,11 +1249,11 @@ function postCommit(req, res) {
 		return getCommitParents(theRepo, thisCommit, fileDir);
 	})
 	.then(function(parents){
-		res.status(200).json(commitJSON(thisCommit, fileDir, theDiffs, parents));
+		writeResponse(200, res, null, commitJSON(thisCommit, fileDir, theDiffs, parents));
 	})
 	.catch(function(err) {
 		writeError(403, res, err.message);
-	})
+	});
 }
 
 function generateChangeId(oid, firstParentId, authorId, committerId, message){

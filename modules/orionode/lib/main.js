@@ -13,6 +13,8 @@ var electron = require('electron');
 var nodeUrl = require('url');
 var dragSrcEl = null;
 var contextSrcEl = null;
+var activeIndex = 0;
+var isInitiatingWorkspace = false;
 var needToCleanFrames = [];
 
 function redrawButtons() {
@@ -187,6 +189,7 @@ function addNewTab(id, iframe) {
 	});
 	tabParent.appendChild(tab);
 	update();
+	return tab;
 }
 
 function setTabLabel(id, str) {
@@ -294,7 +297,7 @@ function registerElectronMenu(pageControlCallbacks, newTabCallback){
 function createNewTabButton(url){
 	var bar = document.querySelector("#bar");
 	var newTabButton = document.createElement("a"),
-		newTabButtonTitle = process.platform === "darwin"? "New Tab (⌘+T)" :"New Tab (Ctrl+T)",
+		newTabButtonTitle = process.platform === "darwin"? "New Tab (Cmd+T)" :"New Tab (Ctrl+T)",
 		newTabButtonText = "+";
 	
 	newTabButton.title = newTabButtonTitle;
@@ -309,6 +312,10 @@ function createNewTabButton(url){
 	return {
 		newTab:newTab
 	};
+}
+
+function bindfocus(){
+	getActiveTab().focus();
 }
 
 function createTab(url) {
@@ -344,14 +351,24 @@ function createTab(url) {
 			var activeClassName = "context-menu-items-open";
 			menu.classList.remove(activeClassName);
 		});
+		if(isInitiatingWorkspace){
+			var tabbuttons = document.querySelectorAll(".tabItem");
+			tabbuttons[activeIndex] && tabbuttons[activeIndex].click();
+			isInitiatingWorkspace = false;
+		}
 	});
 	document.body.appendChild(iframe);
 	var srcUrl = nodeUrl.parse(url);
 	if(srcUrl.pathname === "/" || srcUrl.pathname.endsWith(".html")){
-		addNewTab(id, iframe);	
+		addNewTab(id, iframe).click();
 	}else{
 		needToCleanFrames.push(iframe);
 	}
+}
+
+function setActiveIndex(index){
+	isInitiatingWorkspace = true;
+	activeIndex = index;
 }
 
 function registerContextMenu() {
@@ -455,9 +472,13 @@ function collectTabsUrl(){
 	var ipcRenderer = electron.ipcRenderer;
 	ipcRenderer.on('collect-tabs-info',function(event, arg){
 		var iframes = document.querySelectorAll(".tabContent");
-		var tabUrls = Array.prototype.map.call(iframes,function(iframe){
+		var activeTabIndex = 0;
+		var tabUrls = Array.prototype.map.call(iframes,function(iframe,index){
+			if(iframe.classList.contains("active")){
+				activeTabIndex = index;
+			}
 			return iframe.contentWindow.location.href.replace(/http:\/\/localhost:\w+\//, "");
 		});
-		ipcRenderer.send("collected-tabs-info-" + arg, tabUrls);
+		ipcRenderer.send("collected-tabs-info-" + arg, tabUrls, activeTabIndex);
 	});
 }

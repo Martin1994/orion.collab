@@ -11,9 +11,10 @@
 /*eslint-env node*/
 var express = require('express');
 var bodyParser = require('body-parser');
-var api = require('./api');
+var api = require('./api'), writeError = api.writeError, writeResponse = api.writeResponse;
 var crypto = require('crypto');
-var writeError = api.writeError;
+var log4js = require('log4js');
+var logger = log4js.getLogger("tasks");
 
 var MS_EXPIRATION = 86400 * 1000 * 7; /* 7 days */  // TODO should be settable per task by client
 
@@ -95,6 +96,12 @@ var TaskStoreMongoDB = function(callback) {
 		}.bind(this));
 		this._mongoose.connect('mongodb://localhost/orion_multitenant');
 	}
+	api.getOrionEE().on("close-server", function(){
+		logger.info("Closing Task MongoDB");
+		if(this._mongoose && (this._mongoose.connection.readyState === 1 || this._mongoose.connection.readyState === 2)){
+			this._mongoose.disconnect();
+		}
+	});
 };
 
 TaskStoreMongoDB.prototype = {
@@ -182,7 +189,7 @@ function orionTasksAPI(options) {
 			if (!task || task.username !== req.user.username) {
 				return writeError(404, res);
 			}
-			res.json(toJSON(task, true));
+			writeResponse(200, res, null, toJSON(task, true));
 		});
 	})
 	.delete('', deleteAllOperations)
@@ -195,12 +202,12 @@ function orionTasksAPI(options) {
 			if (!task || task.username !== req.user.username) {
 				return writeError(404, res);
 			}
-			res.json(toJSON(task, false));
+			writeResponse(200, res, null, toJSON(task, false));
 		});
 	})
 	.delete('/temp/:id', deleteOperation)
 	.get('/count', function(req, res/*, next*/) {
-		res.json({"count": taskCount});
+		writeResponse(200, res, null, {"count": taskCount});
 	});
 }
 
@@ -233,7 +240,7 @@ Task.prototype = {
 		this.started = true;
 		taskStore.createTask(this, function(err) {
 			var res = this.res;
-			if (!res) {
+			if (res.finished) {
 				return;
 			}
 			if (err) {
@@ -245,7 +252,6 @@ Task.prototype = {
 				res.setHeader('Content-Length', resp.length);
 				res.end(resp);
 			}
-			this.res = null;
 		}.bind(this));
 	},
 	done: function(result) {
@@ -272,7 +278,7 @@ Task.prototype = {
 			}
 			taskStore.updateTask(this, function(err) {
 				var res = this.res;
-				if (!res) {
+				if (res.finished) {
 					return;
 				}
 				if (err) {
@@ -289,12 +295,11 @@ Task.prototype = {
 						res.end();
 					}
 				}
-				this.res = null;
 			}.bind(this));
 		} else {
 			taskStore.updateTask(this, function(err) {
 				if (err) {
-					console.error(err.toString());
+					logger.error(err.toString());
 				}
 			});
 		}
@@ -310,7 +315,7 @@ Task.prototype = {
 		if (typeof total === "number") this.total = total;
 		taskStore.updateTask(this, function(err) {
 			if (err) {
-				console.error(err.toString());
+				logger.error(err.toString());
 			}
 		});
 	},
@@ -328,7 +333,7 @@ function deleteOperation(req, res/*, next*/) {
 			if (err) {
 				return writeError(500, res, err.toString());
 			}
-			res.status(200).json({});
+			writeResponse(200, res, null, {});
 		});
 	});
 }
@@ -345,7 +350,7 @@ function deleteAllOperations(req, res) {
 		var doneCount = 0;
 		var done = function() {
 			if (!tasks.length || ++doneCount === tasks.length) {
-				res.status(200).json(locations);
+				writeResponse(200, res, null, locations);
 			}
 		};
 		if (!tasks.length) {
